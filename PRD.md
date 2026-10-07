@@ -17,7 +17,7 @@ Stack: Python, scikit-learn (Random Forest; XGBoost is a v2 candidate), FastAPI 
 Flow: dataset → features → model → `/predict` API → one Next.js page.
 
 - FR1: Load a labeled URL dataset from `ml/data/` (CSV with `url,label`).
-- FR2: Extract a fixed feature vector per URL via `ml/features.py` only.
+- FR2: Extract a fixed feature vector per URL via `ml/features.py` only. `extract_features` must strip `http://`/`https://` before computing features; `uses_https` is NOT a model feature because the dataset has almost no scheme information.
 - FR3: Split train/test **before** fitting (grouped so the same domain never appears in both sets), train Random Forest, report held-out metrics.
 - FR4: Save model artifact locally (e.g. `models/phishing_rf.joblib`, never committed).
 - FR5: `POST /predict {url}` returns `{label, probability, reasons[]}` — `reasons[]` always present and human-readable.
@@ -40,3 +40,4 @@ Chrome extension, MongoDB, dashboard, login, XGBoost.
 
 - **URL-only features can miss new or short-lived phishing domains.** Lexical signals (length, symbols, keywords) don't see page content, hosting reputation, or freshly registered domains with clean-looking URLs.
 - **Dataset bias can inflate accuracy.** If `ml/data/` over-represents certain brands, TLDs, or old campaigns, test scores look better than real-world performance. Treat metrics as comparative, not as a safety guarantee.
+- **No HTTPS signal in v1.** `uses_https` is not a model feature: only 107 of 549k dataset URLs carry a scheme, so the model cannot learn anything reliable about HTTPS. `extract_features` strips `http://`/`https://` before computing features so predictions behave the same with or without a scheme.

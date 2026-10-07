@@ -9,7 +9,7 @@ Phase-wise, beginner-sized. Do in order; don't skip ahead. No code until Phase 2
 
 ## Phase 1 — Dataset
 
-- [ ] 1.1 Place CSV in `ml/data/` and map the dataset's columns/labels to `url` and `label` (0 = legit, 1 = phishing); record row count, source, and label split, and document which original value meant what. Done when: class balance is known (e.g. X legit / Y phishing).
+- [ ] 1.1 Place raw CSV in `ml/data/` (keep it unchanged) and run `ml/clean.py` → `ml/data/clean.csv` with columns `url` and `label` (0 = legit/good, 1 = phishing/bad); record row count, source, and label split, and document which original value meant what. Note: `extract_features` must strip `http://`/`https://` before computing features, and `uses_https` is NOT a model feature because the dataset has almost no scheme information. Done when: class balance is known (e.g. X legit / Y phishing).
 
 ## Phase 2 — Features
 
