@@ -9,7 +9,7 @@ Phase-wise, beginner-sized. Do in order; don't skip ahead. No code until Phase 2
 
 ## Phase 1 — Dataset
 
-- [ ] 1.1 Place CSV in `ml/data/` (columns `url,label`); record row count, source, and label split. Done when: class balance is known (e.g. X legit / Y phishing).
+- [ ] 1.1 Place CSV in `ml/data/` and map the dataset's columns/labels to `url` and `label` (0 = legit, 1 = phishing); record row count, source, and label split, and document which original value meant what. Done when: class balance is known (e.g. X legit / Y phishing).
 
 ## Phase 2 — Features
 
@@ -22,7 +22,7 @@ Phase-wise, beginner-sized. Do in order; don't skip ahead. No code until Phase 2
 
 ## Phase 4 — API
 
-- [ ] 4.1 FastAPI `POST /predict` in `backend/main.py`: load `.joblib` once, reuse `extract_features` + reasons helper, return `{label, probability, reasons[]}` with 422 on invalid URLs. Done when: good/bad/garbage URLs all return sensible responses.
+- [ ] 4.1 FastAPI `POST /predict` in `backend/main.py`: load `.joblib` once, reuse `extract_features` + reasons helper, return `{label, probability, reasons[]}` with 422 on invalid URLs; enable CORS for `http://localhost:3000` and enforce a URL length limit (2048 chars) returning 422. Done when: good/bad/garbage/oversized URLs all return sensible responses.
 - [ ] 4.2 Add `tests/test_api.py`: valid URL returns label + probability + non-empty reasons; garbage URL returns 422; training-only feature logic is not duplicated in the API. Done when: tests pass.
 
 ## Phase 5 — Frontend
@@ -32,7 +32,7 @@ Phase-wise, beginner-sized. Do in order; don't skip ahead. No code until Phase 2
 ## Phase 6 — End-to-end
 
 - [ ] 6.1 Manual check: 5 test URLs through the UI; record results. Done when: all 5 return a verdict with reasons.
-- [ ] 6.2 Write run instructions (backend + frontend commands) and update `AGENTS.md` with the exact commands.
+- [ ] 6.2 Write run instructions (backend + frontend commands) and update `AGENTS.md` with the exact commands. README must say where to download the dataset and where to place it (`ml/data/`).
 
 ## Explicitly not in v1
 

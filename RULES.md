@@ -17,7 +17,7 @@ AI must follow these rules. When in doubt, stop and ask. Written for a beginner 
 ## Data / secrets (never commit)
 
 - **Never commit datasets, models, or `.env` files.** Datasets live in `ml/data/`, model artifacts (`*.joblib`) in `models/`, secrets in `.env` — all stay local-only.
-- No hardcoded absolute paths; model path configurable, default `models/phishing_rf.joblib`.
+- No hardcoded absolute paths; model path configurable, default `models/`.
 
 ## Python / ML
 
@@ -32,4 +32,4 @@ AI must follow these rules. When in doubt, stop and ask. Written for a beginner 
 ## AI workflow
 
 - Small steps, one phase of `TASKS.md` at a time. Explain what/why before each change.
-- Don't invent commands (no pytest/ruff/black until added). Update `AGENTS.md` when a real command or entrypoint is introduced.
+- pytest is installed and allowed; don't add other tools without asking. Update `AGENTS.md` when a real command or entrypoint is introduced.
