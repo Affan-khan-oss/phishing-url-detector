@@ -3,3 +3,6 @@
 __pycache__/
 node_modules/
 .pytest_cache/
+*.joblib
+ml/data/*.csv
+frontend/.env.local
