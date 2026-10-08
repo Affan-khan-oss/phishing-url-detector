@@ -213,10 +213,9 @@ def reasons_from_features(features) -> list[str]:
         reasons.append("Extra-long path, often used to hide the real page.")
     if f.get("num_dots", 0) > 3:
         reasons.append("Has many dots, a sign of fake subdomains.")
-    if f.get("num_hyphens", 0) > 2:
-        reasons.append("Has many hyphens, often used to imitate brands.")
-    if f.get("num_underscores", 0) >= 1:
-        reasons.append("Contains underscores, uncommon in legitimate domains.")
+    # NOTE: num_hyphens and num_underscores are model features but have
+    # no reasons: threshold validation (docs/threshold_validation.md)
+    # showed both fire more often on legit URLs than on phishing ones.
     if f.get("num_digits", 0) > 5:
         reasons.append(
             "Contains many numbers, typical of auto-generated phishing links."
