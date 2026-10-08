@@ -12,7 +12,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import ALLOWLIST_PATH, app
-from ml.features import FEATURE_NAMES, extract_features, reasons_from_features
+from ml.features import (
+    FALLBACK_REASON,
+    FEATURE_NAMES,
+    extract_features,
+    reasons_from_features,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT / "models" / "phishing_rf.joblib"
@@ -72,6 +77,7 @@ def test_allowlist_bare_and_path(client):
     assert bare["override"] is False  # model also says safe (0.035)
     assert "allowlist" in bare["reasons"][0].lower()
     assert "verdict overridden" not in bare["reasons"][0].lower()
+    assert FALLBACK_REASON not in bare["reasons"]
 
     path = client.post("/predict", json={"url": "google.com/about"}).json()
     assert path["label"] == "safe"
@@ -79,6 +85,7 @@ def test_allowlist_bare_and_path(client):
     assert path["override"] is True  # model says phishing (0.677)
     assert "allowlist" in path["reasons"][0].lower()
     assert "verdict overridden" in path["reasons"][0].lower()
+    assert FALLBACK_REASON not in path["reasons"]
     assert "does not guarantee" in path["disclaimer"]
 
 

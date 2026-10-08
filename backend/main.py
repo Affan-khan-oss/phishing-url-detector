@@ -20,6 +20,8 @@ from pathlib import Path
 # Allow running/importing from the repo root.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from typing import Literal
+
 import joblib
 import numpy as np
 from fastapi import FastAPI, Request
@@ -28,6 +30,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ml.features import (
+    FALLBACK_REASON,
     FEATURE_NAMES,
     MAX_URL_LENGTH,
     extract_features,
@@ -60,6 +63,17 @@ ALLOWLIST_REASON = "Well-known domain on the allowlist"
 
 class PredictRequest(BaseModel):
     url: str
+
+
+class PredictResponse(BaseModel):
+    label: Literal["phishing", "safe"]
+    score: float
+    threshold: float
+    risk_level: Literal["low", "medium", "high"]
+    reasons: list[str]
+    disclaimer: str
+    source: Literal["model", "allowlist"]
+    override: bool
 
 
 def _request_host(url: str) -> str:
@@ -163,7 +177,7 @@ def _invalid(message: str) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": message})
 
 
-@app.post("/predict")
+@app.post("/predict", response_model=PredictResponse)
 def predict(req: PredictRequest):
     text = req.url.strip()
     if not text:
@@ -195,12 +209,16 @@ def predict(req: PredictRequest):
         if override:
             first_reason = (f"{ALLOWLIST_REASON} (matched {matched} — "
                             "verdict overridden).")
+        # Drop the fallback: on allowlist hits the verdict comes from the
+        # list, so "the model judged..." would be wrong. Real model reasons
+        # stay for transparency.
+        kept = [r for r in reasons if r != FALLBACK_REASON]
         return {
             "label": "safe",
             "score": score,
             "threshold": threshold,
             "risk_level": "low",
-            "reasons": [first_reason] + reasons,
+            "reasons": [first_reason] + kept,
             "source": "allowlist",
             "override": override,
             "disclaimer": DISCLAIMER_BASE + DISCLAIMER_ALLOWLIST,
