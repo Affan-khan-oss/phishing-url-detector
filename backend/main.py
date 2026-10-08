@@ -190,15 +190,19 @@ def predict(req: PredictRequest):
 
     matched = _allowlist_match(_request_host(text), app.state.allowlist)
     if matched is not None:
+        override = bool(model_says_phishing)
+        first_reason = f"{ALLOWLIST_REASON} (matched {matched})."
+        if override:
+            first_reason = (f"{ALLOWLIST_REASON} (matched {matched} — "
+                            "verdict overridden).")
         return {
             "label": "safe",
             "score": score,
             "threshold": threshold,
             "risk_level": "low",
-            "reasons": [f"{ALLOWLIST_REASON} (matched {matched} — "
-                        "verdict overridden)."] + reasons,
+            "reasons": [first_reason] + reasons,
             "source": "allowlist",
-            "override": bool(model_says_phishing),
+            "override": override,
             "disclaimer": DISCLAIMER_BASE + DISCLAIMER_ALLOWLIST,
         }
     return {

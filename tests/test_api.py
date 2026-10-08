@@ -71,12 +71,14 @@ def test_allowlist_bare_and_path(client):
     assert bare["source"] == "allowlist"
     assert bare["override"] is False  # model also says safe (0.035)
     assert "allowlist" in bare["reasons"][0].lower()
+    assert "verdict overridden" not in bare["reasons"][0].lower()
 
     path = client.post("/predict", json={"url": "google.com/about"}).json()
     assert path["label"] == "safe"
     assert path["source"] == "allowlist"
     assert path["override"] is True  # model says phishing (0.677)
     assert "allowlist" in path["reasons"][0].lower()
+    assert "verdict overridden" in path["reasons"][0].lower()
     assert "does not guarantee" in path["disclaimer"]
 
 
@@ -134,7 +136,8 @@ def test_scheme_invariance(client):
     b = client.post(
         "/predict", json={"url": "example.com/about/team/contact-us"}
     ).json()
-    assert a["score"] == b["score"]
+    # approx: parallel tree inference (n_jobs=-1) can flip the last bit.
+    assert a["score"] == pytest.approx(b["score"])
 
 
 def test_no_duplicated_feature_logic(client):
