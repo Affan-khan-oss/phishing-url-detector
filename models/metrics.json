@@ -1,0 +1,94 @@
+{
+  "random_state_split1": 42,
+  "random_state_split2": 43,
+  "random_state_model": 42,
+  "recall_target": 0.9,
+  "splits": {
+    "train": {
+      "n": 301156
+    },
+    "val": 107936,
+    "test": 98097
+  },
+  "baseline_test": {
+    "accuracy": 0.7691876408045099,
+    "precision_phish": 0.0,
+    "recall_phish": 0.0,
+    "f1_phish": 0.0
+  },
+  "default_threshold_test": {
+    "threshold": 0.5,
+    "accuracy": 0.8390266776761777,
+    "precision_phish": 0.6167638136142073,
+    "recall_phish": 0.799134352089038,
+    "f1_phish": 0.6962042363262086
+  },
+  "tuned_val": {
+    "threshold": 0.33,
+    "accuracy": 0.7725596649866587,
+    "precision_phish": 0.4830636361525782,
+    "recall_phish": 0.9011260285838025,
+    "f1_phish": 0.6289618064477125
+  },
+  "tuned_threshold_test": {
+    "threshold": 0.33,
+    "accuracy": 0.7389318735537275,
+    "precision_phish": 0.4655812227479358,
+    "recall_phish": 0.8865824573800901,
+    "f1_phish": 0.6105416831412147
+  },
+  "confusion_matrix_test_tuned": [
+    [
+      52413,
+      23042
+    ],
+    [
+      2568,
+      20074
+    ]
+  ],
+  "feature_importances_top10": [
+    {
+      "feature": "num_digits",
+      "importance": 0.15976972682988153
+    },
+    {
+      "feature": "path_len",
+      "importance": 0.14505530866474042
+    },
+    {
+      "feature": "has_suspicious_word",
+      "importance": 0.13386065613193168
+    },
+    {
+      "feature": "num_dots",
+      "importance": 0.10987597560037321
+    },
+    {
+      "feature": "url_len",
+      "importance": 0.10980525222616659
+    },
+    {
+      "feature": "host_len",
+      "importance": 0.09710152344784934
+    },
+    {
+      "feature": "num_hyphens",
+      "importance": 0.08744893844092493
+    },
+    {
+      "feature": "num_subdomains",
+      "importance": 0.04748448055101713
+    },
+    {
+      "feature": "num_specials",
+      "importance": 0.04584956826427768
+    },
+    {
+      "feature": "num_underscores",
+      "importance": 0.04373433260771376
+    }
+  ],
+  "model_file": "phishing_rf.joblib",
+  "model_size_mb": 74.14
+}
