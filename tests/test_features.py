@@ -1,4 +1,4 @@
-"""Tests for ml/features.py (Phase 2.2)."""
+"""Tests for ml/features.py (Phase 2.2, v2: 24 features)."""
 
 import pytest
 
@@ -8,6 +8,8 @@ from ml.features import (
     extract_features,
     reasons_from_features,
 )
+
+N_FEATURES = 24
 
 
 def _index(name: str) -> int:
@@ -20,7 +22,7 @@ def test_same_url_same_vector():
 
 
 def test_stable_feature_order_and_length():
-    assert len(FEATURE_NAMES) == 14
+    assert len(FEATURE_NAMES) == N_FEATURES
     assert len(set(FEATURE_NAMES)) == len(FEATURE_NAMES)  # no duplicates
     first = extract_features("http://example.com/login")
     second = extract_features("http://paypal.secure-login.evil.com/verify")
@@ -42,6 +44,28 @@ def test_scheme_and_no_scheme_identical():
     without_scheme = extract_features("example.com/login")
     https_scheme = extract_features("https://example.com/login")
     assert with_scheme == without_scheme == https_scheme
+
+
+def test_scheme_invariance_with_v2_features():
+    url = "https://paypal.login.evil-files.tk/a/b/c/signin.php?x=1&y=2"
+    bare = url.split("://", 1)[1]
+    assert extract_features(url) == extract_features(bare)
+
+
+def test_brand_mismatch_flagged():
+    spoof = extract_features("http://paypal.login.evil.com/verify")
+    assert spoof[_index("brand_mismatch")] == 1
+    assert any("brand" in r for r in reasons_from_features(spoof))
+    genuine = extract_features("http://paypal.com/login")
+    assert genuine[_index("brand_mismatch")] == 0
+
+
+def test_risky_ext_and_entropies():
+    feats = extract_features("http://evil.com/files/invoice.exe")
+    assert feats[_index("has_risky_ext")] == 1
+    assert feats[_index("host_entropy")] >= 0.0
+    assert feats[_index("path_entropy")] >= 0.0
+    assert isinstance(feats[_index("digit_ratio")], float)
 
 
 def test_invalid_inputs_raise():

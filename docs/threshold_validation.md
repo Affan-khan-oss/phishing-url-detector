@@ -42,3 +42,30 @@ phishing-side separators: `has_suspicious_word` (0.2945 vs 0.0193),
 `num_dots` (0.2422 vs 0.0299), `url_len` (0.2864 vs 0.1039).
 `has_punycode` is nearly absent in both classes — harmless but near-zero
 signal on this sample.
+
+## v2 re-validation (10 new reasons)
+
+Same method: 50,000-row sample, seed 42 (38,691 legit / 11,309 phishing).
+
+| feature | reason threshold | mean legit | mean phish | fire legit | fire phish |
+|---|---|---:|---:|---:|---:|
+| digit_ratio | > 0.20 | 0.060 | 0.107 | 0.0703 | 0.2099 |
+| letter_ratio | < 0.60 | 0.800 | 0.754 | 0.0382 | 0.1298 |
+| host_entropy | > 4.0 | 3.308 | 3.438 | 0.0073 | 0.0821 |
+| path_entropy | > 4.5 | 3.430 | 3.543 | 0.0722 | 0.1919 |
+| path_depth | > 3 | 2.329 | 3.049 | 0.1620 | 0.3283 |
+| num_query_params | ≥ 2 | 0.196 | 0.549 | 0.0354 | 0.1392 |
+| longest_token_len | > 20 | 11.178 | 19.413 | 0.0332 | 0.2197 |
+| has_risky_ext | == 1 | 0.277 | 0.458 | 0.2775 | 0.4582 |
+| has_suspicious_tld | == 1 | 0.000 | 0.017 | 0.0000 | 0.0165 |
+| brand_mismatch | == 1 | 0.002 | 0.113 | 0.0019 | 0.1133 |
+
+## v2 findings
+
+- **No inverted reasons: all 10 new thresholds fire more on phishing.**
+  Nothing removed. Strongest new separators: `brand_mismatch`
+  (0.1133 vs 0.0019), `longest_token_len` (0.2197 vs 0.0332),
+  `digit_ratio` (0.2099 vs 0.0703).
+- Caveat: `has_risky_ext` fires on 27.75% of legit URLs (`.html`/`.js`
+  are common legitimately) — kept since it still leans phishing
+  (0.4582), but its reason is the noisiest of the set.

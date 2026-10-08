@@ -1,4 +1,4 @@
-"""Lexical URL features for phishing detection (v1).
+"""Lexical URL features for phishing detection (v2: 24 features).
 
 Single source of truth for feature extraction. Used by both
 training (ml/train.py) and the API (backend/main.py).
@@ -10,6 +10,7 @@ Rules enforced here (per PRD/RULES):
   TLDExtract(suffix_list_urls=()) using its bundled snapshot.
 """
 
+import math
 import re
 
 import tldextract
@@ -31,6 +32,16 @@ FEATURE_NAMES = [
     "has_suspicious_word",
     "has_punycode",
     "has_percent_encoding",
+    "digit_ratio",
+    "letter_ratio",
+    "host_entropy",
+    "path_entropy",
+    "path_depth",
+    "num_query_params",
+    "longest_token_len",
+    "has_risky_ext",
+    "has_suspicious_tld",
+    "brand_mismatch",
 ]
 
 SUSPICIOUS_WORDS = [
@@ -50,6 +61,39 @@ SUSPICIOUS_WORDS = [
 FALLBACK_REASON = (
     "No single strong signal; the model judged by a combination of patterns."
 )
+
+# File extensions often abused for payload drops / fake login pages.
+RISKY_EXTS = (".php", ".exe", ".html", ".htm", ".zip", ".js")
+
+# Fixed list of cheap TLDs historically abused for throwaway domains.
+# Fixed (not train-derived) so there is no leakage and no extra model state.
+SUSPICIOUS_TLDS = frozenset(
+    {"tk", "ml", "ga", "cf", "gq", "xyz", "top", "buzz", "shop", "click"}
+)
+
+# Brands commonly impersonated in subdomains/paths (~20).
+BRAND_KEYWORDS = [
+    "paypal",
+    "apple",
+    "google",
+    "facebook",
+    "amazon",
+    "microsoft",
+    "netflix",
+    "chase",
+    "bankofamerica",
+    "wellsfargo",
+    "instagram",
+    "whatsapp",
+    "linkedin",
+    "ebay",
+    "steam",
+    "discord",
+    "coinbase",
+    "binance",
+    "roblox",
+    "alipay",
+]
 
 # Offline extractor: never fetches the public-suffix list from the network.
 _EXTRACTOR = tldextract.TLDExtract(suffix_list_urls=())
@@ -115,8 +159,19 @@ def _is_ip(host: str) -> bool:
     return False
 
 
-def extract_features(url: str) -> list[int]:
-    """Extract the fixed 14-feature vector for a URL.
+def _shannon_entropy(s: str) -> float:
+    """Shannon entropy (bits/char) of a string; 0.0 for empty input."""
+    if not s:
+        return 0.0
+    counts: dict[str, int] = {}
+    for ch in s:
+        counts[ch] = counts.get(ch, 0) + 1
+    n = len(s)
+    return -sum((c / n) * math.log2(c / n) for c in counts.values())
+
+
+def extract_features(url: str) -> list:
+    """Extract the fixed 24-feature vector for a URL (ints and floats).
 
     Raises:
         ValueError: for empty/non-string input or URLs over 2048 chars.
@@ -156,6 +211,35 @@ def extract_features(url: str) -> list[int]:
     has_punycode = 1 if "xn--" in host else 0
     has_percent_encoding = 1 if _PERCENT_RE.search(stripped) else 0
 
+    url_len_f = float(url_len)
+    digit_ratio = num_digits / url_len_f
+    letter_ratio = sum(ch.isalpha() for ch in stripped) / url_len_f
+    host_entropy = _shannon_entropy(real_host)
+    path_entropy = _shannon_entropy(rest)
+    path_depth = rest.count("/")
+    if "?" in rest:
+        query = rest.split("?", 1)[1].split("#", 1)[0]
+        num_query_params = len(query.split("&")) if query else 0
+    else:
+        num_query_params = 0
+    tokens = re.findall(r"[A-Za-z0-9]+", stripped)
+    longest_token_len = max((len(t) for t in tokens), default=0)
+    rest_lower = rest.lower()
+    has_risky_ext = 1 if any(e in rest_lower for e in RISKY_EXTS) else 0
+
+    tld = ext.suffix.split(".")[-1].lower() if ext.suffix else ""
+    has_suspicious_tld = 1 if tld in SUSPICIOUS_TLDS else 0
+
+    reg_domain = (
+        f"{ext.domain}.{ext.suffix}".lower()
+        if ext.domain and ext.suffix
+        else (ext.domain.lower() if ext.domain else real_host)
+    )
+    lure_text = (ext.subdomain.lower() + " " + rest_lower)
+    brand_in_lure = any(b in lure_text for b in BRAND_KEYWORDS)
+    brand_in_reg = any(b in reg_domain for b in BRAND_KEYWORDS)
+    brand_mismatch = 1 if (brand_in_lure and not brand_in_reg) else 0
+
     return [
         url_len,
         host_len,
@@ -171,6 +255,16 @@ def extract_features(url: str) -> list[int]:
         has_suspicious_word,
         has_punycode,
         has_percent_encoding,
+        digit_ratio,
+        letter_ratio,
+        host_entropy,
+        path_entropy,
+        path_depth,
+        num_query_params,
+        longest_token_len,
+        has_risky_ext,
+        has_suspicious_tld,
+        brand_mismatch,
     ]
 
 
@@ -226,6 +320,45 @@ def reasons_from_features(features) -> list[str]:
         )
     if f.get("num_subdomains", 0) >= 3:
         reasons.append("Uses many subdomains to impersonate a trusted site.")
+    if f.get("digit_ratio", 0.0) > 0.20:
+        reasons.append(
+            "A large share of the URL is numbers, typical of "
+            "auto-generated phishing links."
+        )
+    if f.get("letter_ratio", 1.0) < 0.60:
+        reasons.append(
+            "Few readable letters for its length, suggesting obfuscation."
+        )
+    if f.get("host_entropy", 0.0) > 4.0:
+        reasons.append(
+            "The domain name looks random, a sign of auto-generated "
+            "phishing domains."
+        )
+    if f.get("path_entropy", 0.0) > 4.5:
+        reasons.append(
+            "The path looks scrambled or encoded to hide its destination."
+        )
+    if f.get("path_depth", 0) > 3:
+        reasons.append(
+            "Buried deep in nested folders, a common phishing-kit layout."
+        )
+    if f.get("num_query_params", 0) >= 2:
+        reasons.append("Loaded with tracking or redirect parameters.")
+    if f.get("longest_token_len", 0) > 20:
+        reasons.append("Contains a very long random-looking token.")
+    if f.get("has_risky_ext"):
+        reasons.append(
+            "Points at a downloadable or script file, a common payload trick."
+        )
+    if f.get("has_suspicious_tld"):
+        reasons.append(
+            "Uses a cheap top-level domain often abused for throwaway "
+            "phishing sites."
+        )
+    if f.get("brand_mismatch"):
+        reasons.append(
+            "Mentions a trusted brand but leads to a different domain."
+        )
 
     if not reasons:
         reasons.append(FALLBACK_REASON)
