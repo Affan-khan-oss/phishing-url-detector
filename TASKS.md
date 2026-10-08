@@ -22,7 +22,7 @@ Phase-wise, beginner-sized. Do in order; don't skip ahead. No code until Phase 2
 
 ## Phase 4 — API
 
-- [ ] 4.1 FastAPI `POST /predict` in `backend/main.py`: load `.joblib` once, reuse `extract_features` + reasons helper, return `{label, probability, reasons[]}` with 422 on invalid URLs; enable CORS for `http://localhost:3000` and enforce a URL length limit (2048 chars) returning 422. Done when: good/bad/garbage/oversized URLs all return sensible responses.
+- [ ] 4.1 FastAPI `POST /predict` in `backend/main.py`: load `.joblib` once, reuse `extract_features` + reasons helper, return `{label, probability, reasons[]}` with 422 on invalid URLs; enable CORS for `http://localhost:3000` and enforce a URL length limit (2048 chars) returning 422. Request bodies over 4 KB are rejected (413). Note — before deploy: add per-IP rate limiting. Done when: good/bad/garbage/oversized URLs all return sensible responses.
 - [ ] 4.2 Add `tests/test_api.py`: valid URL returns label + probability + non-empty reasons; garbage URL returns 422; training-only feature logic is not duplicated in the API. Done when: tests pass.
 
 ## Phase 5 — Frontend
