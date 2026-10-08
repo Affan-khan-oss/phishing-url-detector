@@ -6,20 +6,20 @@ export type Example = {
 export const EXAMPLES: Example[] = [
   {
     url: "google.com",
-    caption: "Known safe site — allowlist, low risk.",
+    caption: "Known safe site - allowlist, low risk.",
   },
   {
     url: "github.com/about",
     caption:
-      "Known safe site — allowlist (model scored 0.75, overridden). Shows the short-path edge case.",
+      "Known safe site - allowlist (model scored 0.75, overridden). Shows the short-path edge case.",
   },
   {
     url: "example.com/about/team/contact-us",
-    caption: "Model safe — low risk, longer path.",
+    caption: "Model safe - low risk, longer path.",
   },
   {
     url: "http://paypal-login-secure-update.tk/signin",
-    caption: "Likely phishing — high risk (urgent lure + cheap TLD).",
+    caption: "Likely phishing - high risk (urgent lure + cheap TLD).",
   },
 ];
 

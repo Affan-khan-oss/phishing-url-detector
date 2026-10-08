@@ -2,7 +2,7 @@ export default function Footer() {
   return (
     <footer className="mt-8 border-t border-slate-200 pt-4 dark:border-slate-800">
       <h2 id="limitations" className="text-sm font-semibold">
-        Limitations — experimental, URL text only.
+        Limitations experimental, URL text only.
       </h2>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-slate-400">
         <li>

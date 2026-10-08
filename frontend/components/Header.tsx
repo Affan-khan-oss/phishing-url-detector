@@ -5,7 +5,7 @@ export default function Header() {
         Phishing URL Checker
       </h1>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-        Paste a URL to check lexical risk signals. Experimental — not a
+        Paste a URL to check lexical risk signals. Experimental not a
         safety guarantee.
       </p>
     </header>
