@@ -1,24 +1,24 @@
 # URL Phishing Detection System
 
-Paste a URL, get a phishing verdict with human-readable reasons. A local full-stack app: a scikit-learn Random Forest scores lexical URL signals behind a FastAPI backend, a small offline allowlist protects well-known domains from model false positives, and a single Next.js + TypeScript page shows the verdict, risk score, risk level, and reasons. Experimental — a lexical heuristic, not a safety guarantee.
+Paste a URL, get a phishing verdict with human-readable reasons. A local full-stack app: a scikit-learn Random Forest scores lexical URL signals behind a FastAPI backend, a small offline allowlist protects well-known domains from model false positives, and a single Next.js + TypeScript page shows the verdict, risk score, risk level, and reasons. Experimental a lexical heuristic, not a safety guarantee.
 
 ## Screenshots
 
 ![Model safe verdict](docs/screenshots/01-safe-model.png)
 
-Model safe — low risk on a longer-path URL.
+Model safe - low risk on a longer-path URL.
 
 ![Allowlist verdict](docs/screenshots/02-allowlist.png)
 
-Known safe site — allowlist verdict, low risk.
+Suspicious - medium-risk model verdict with no single strong signal.
 
 ![Phishing verdict](docs/screenshots/03-phishing.png)
 
-Likely phishing — high risk with strong signals (urgent lure + cheap TLD).
+Known safe site - allowlist verdict, low risk.
 
 ![Suspicious verdict](docs/screenshots/04-suspicious.png)
 
-Suspicious — medium-risk model verdict with no single strong signal.
+Likely phishing - high risk with strong signals (urgent lure + cheap TLD).
 
 ## Architecture
 
