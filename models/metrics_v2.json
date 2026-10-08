@@ -1,0 +1,272 @@
+{
+  "random_state_split1": 42,
+  "random_state_split2": 43,
+  "random_state_model": 42,
+  "recall_target": 0.92,
+  "n_features": 24,
+  "splits": {
+    "train": {
+      "n": 301156
+    },
+    "val": 107936,
+    "test": 98097
+  },
+  "baseline_test": {
+    "accuracy": 0.7691876408045099,
+    "precision_phish": 0.0,
+    "recall_phish": 0.0,
+    "f1_phish": 0.0
+  },
+  "v1": {
+    "random_state_split1": 42,
+    "random_state_split2": 43,
+    "random_state_model": 42,
+    "recall_target": 0.9,
+    "splits": {
+      "train": {
+        "n": 301156
+      },
+      "val": 107936,
+      "test": 98097
+    },
+    "baseline_test": {
+      "accuracy": 0.7691876408045099,
+      "precision_phish": 0.0,
+      "recall_phish": 0.0,
+      "f1_phish": 0.0
+    },
+    "default_threshold_test": {
+      "threshold": 0.5,
+      "accuracy": 0.8390266776761777,
+      "precision_phish": 0.6167638136142073,
+      "recall_phish": 0.799134352089038,
+      "f1_phish": 0.6962042363262086
+    },
+    "tuned_val": {
+      "threshold": 0.33,
+      "accuracy": 0.7725596649866587,
+      "precision_phish": 0.4830636361525782,
+      "recall_phish": 0.9011260285838025,
+      "f1_phish": 0.6289618064477125
+    },
+    "tuned_threshold_test": {
+      "threshold": 0.33,
+      "accuracy": 0.7389318735537275,
+      "precision_phish": 0.4655812227479358,
+      "recall_phish": 0.8865824573800901,
+      "f1_phish": 0.6105416831412147
+    },
+    "confusion_matrix_test_tuned": [
+      [
+        52413,
+        23042
+      ],
+      [
+        2568,
+        20074
+      ]
+    ],
+    "feature_importances_top10": [
+      {
+        "feature": "num_digits",
+        "importance": 0.15976972682988153
+      },
+      {
+        "feature": "path_len",
+        "importance": 0.14505530866474042
+      },
+      {
+        "feature": "has_suspicious_word",
+        "importance": 0.13386065613193168
+      },
+      {
+        "feature": "num_dots",
+        "importance": 0.10987597560037321
+      },
+      {
+        "feature": "url_len",
+        "importance": 0.10980525222616659
+      },
+      {
+        "feature": "host_len",
+        "importance": 0.09710152344784934
+      },
+      {
+        "feature": "num_hyphens",
+        "importance": 0.08744893844092493
+      },
+      {
+        "feature": "num_subdomains",
+        "importance": 0.04748448055101713
+      },
+      {
+        "feature": "num_specials",
+        "importance": 0.04584956826427768
+      },
+      {
+        "feature": "num_underscores",
+        "importance": 0.04373433260771376
+      }
+    ],
+    "model_file": "phishing_rf.joblib",
+    "model_size_mb": 74.14
+  },
+  "v2": {
+    "rf": {
+      "threshold": 0.35,
+      "default_threshold_test": {
+        "threshold": 0.5,
+        "accuracy": 0.872972669908356,
+        "precision_phish": 0.6826712599131589,
+        "recall_phish": 0.8402084621499868,
+        "f1_phish": 0.7532914926052783
+      },
+      "tuned_val": {
+        "threshold": 0.35,
+        "accuracy": 0.8462978061073229,
+        "precision_phish": 0.590042666371142,
+        "recall_phish": 0.9223473365093114,
+        "f1_phish": 0.7196877534468775
+      },
+      "tuned_threshold_test": {
+        "threshold": 0.35,
+        "accuracy": 0.8006972690296339,
+        "precision_phish": 0.5406892557196641,
+        "recall_phish": 0.9070311809910785,
+        "f1_phish": 0.6775092783505154
+      },
+      "confusion_matrix_test_tuned": [
+        [
+          58009,
+          17446
+        ],
+        [
+          2105,
+          20537
+        ]
+      ],
+      "feature_importances_top10": [
+        {
+          "feature": "has_suspicious_word",
+          "importance": 0.09329161629456789
+        },
+        {
+          "feature": "longest_token_len",
+          "importance": 0.09198232454161616
+        },
+        {
+          "feature": "path_entropy",
+          "importance": 0.07590973980567912
+        },
+        {
+          "feature": "path_len",
+          "importance": 0.07453005482649061
+        },
+        {
+          "feature": "num_dots",
+          "importance": 0.07353138664427021
+        },
+        {
+          "feature": "path_depth",
+          "importance": 0.07266791761032654
+        },
+        {
+          "feature": "num_digits",
+          "importance": 0.0636688929337785
+        },
+        {
+          "feature": "letter_ratio",
+          "importance": 0.05991071303104821
+        },
+        {
+          "feature": "host_entropy",
+          "importance": 0.05925458064559183
+        },
+        {
+          "feature": "url_len",
+          "importance": 0.049936813592572626
+        }
+      ],
+      "model_size_mb": 87.88
+    },
+    "xgb": {
+      "threshold": 0.34,
+      "default_threshold_test": {
+        "threshold": 0.5,
+        "accuracy": 0.8573452806915604,
+        "precision_phish": 0.6451201503557524,
+        "recall_phish": 0.8489532726790919,
+        "f1_phish": 0.7331324611922652
+      },
+      "tuned_val": {
+        "threshold": 0.34,
+        "accuracy": 0.8363937889119478,
+        "precision_phish": 0.57324737679713,
+        "recall_phish": 0.9203984408834993,
+        "f1_phish": 0.7064807273573459
+      },
+      "tuned_threshold_test": {
+        "threshold": 0.34,
+        "accuracy": 0.7763234349674302,
+        "precision_phish": 0.5086595081399377,
+        "recall_phish": 0.9080028266054235,
+        "f1_phish": 0.6520456707897241
+      },
+      "confusion_matrix_test_tuned": [
+        [
+          55596,
+          19859
+        ],
+        [
+          2083,
+          20559
+        ]
+      ],
+      "feature_importances_top10": [
+        {
+          "feature": "has_suspicious_word",
+          "importance": 1881.846923828125
+        },
+        {
+          "feature": "brand_mismatch",
+          "importance": 331.1861267089844
+        },
+        {
+          "feature": "has_suspicious_tld",
+          "importance": 308.81597900390625
+        },
+        {
+          "feature": "has_ip",
+          "importance": 235.63291931152344
+        },
+        {
+          "feature": "num_digits",
+          "importance": 216.8385772705078
+        },
+        {
+          "feature": "num_dots",
+          "importance": 201.0478973388672
+        },
+        {
+          "feature": "num_hyphens",
+          "importance": 166.16236877441406
+        },
+        {
+          "feature": "has_risky_ext",
+          "importance": 165.69737243652344
+        },
+        {
+          "feature": "path_depth",
+          "importance": 165.61256408691406
+        },
+        {
+          "feature": "num_subdomains",
+          "importance": 157.10504150390625
+        }
+      ]
+    }
+  },
+  "selected": "rf",
+  "model_file": "phishing_rf.joblib",
+  "model_size_mb": 87.88
+}

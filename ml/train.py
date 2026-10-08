@@ -1,10 +1,14 @@
-"""Train v2 models: RandomForest vs XGBoost on 24 features (v2 track).
+"""Train v3: v2-RF + bare-host augmentation (fixes "no path = phishing").
 
 Pipeline: load ml/data/clean.csv -> featurize via ml/features.py
 (cached in ml/data/features.csv, git-ignored) -> domain-grouped
-train/val/test split (same seeds as v1, so same rows) -> train RF +
-XGB -> held-out metrics -> per-model threshold tuning on VAL only
-(target 0.92 val recall as safety margin) -> save winner + metrics.
+train/val/test split (same seeds as v1/v2, so same rows) ->
+AUGMENT train+val legit rows with bare-host variants (post-split,
+same groups; test stays un-augmented) -> train RF -> held-out
+metrics on the un-augmented test -> threshold tuning on augmented
+VAL (0.92 target) -> bare-host slice diagnostic (v2 vs v3, test rows
+only, never trained on) -> hand-made probe set (sanity check only,
+never tuned on) -> save model + metrics.
 
 Run from the repo root:
   .venv\\Scripts\\python.exe ml/train.py
@@ -32,25 +36,72 @@ from sklearn.metrics import (
     recall_score,
 )
 from sklearn.model_selection import GroupShuffleSplit
-from xgboost import XGBClassifier
 
 from ml.features import FEATURE_NAMES, extract_features
 
 ROOT = Path(__file__).resolve().parent.parent
 CLEAN_PATH = ROOT / "ml" / "data" / "clean.csv"
 CACHE_PATH = ROOT / "ml" / "data" / "features.csv"
-MODEL_RF_PATH = ROOT / "models" / "phishing_rf.joblib"
-MODEL_XGB_PATH = ROOT / "models" / "phishing_xgb.joblib"
+MODEL_PATH = ROOT / "models" / "phishing_rf.joblib"
+MODEL_V2_PATH = ROOT / "models" / "phishing_rf_v2.joblib"
 METRICS_PATH = ROOT / "models" / "metrics.json"
-METRICS_V1_PATH = ROOT / "models" / "metrics_v1.json"
+METRICS_V2_PATH = ROOT / "models" / "metrics_v2.json"
+PROBE_PATH = ROOT / "docs" / "probe_set.md"
 
-SEED_SPLIT1 = 42  # same as v1 -> same grouped rows
+SEED_SPLIT1 = 42  # same as v1/v2 -> same grouped rows
 SEED_SPLIT2 = 43
 SEED_MODEL = 42
+SEED_AUG_TRAIN = 42
+SEED_AUG_VAL = 43
 RECALL_TARGET = 0.92  # safety margin: v1 lost ~0.015 val->test
+AUG_FRAC = 0.10  # cap: ~10% of legit rows per augmented set
 
 # Offline extractor for grouping only (split logic, not model features).
 _EXTRACTOR = tldextract.TLDExtract(suffix_list_urls=())
+
+# Hand-made probe set: sanity check only, NEVER tuned on, NOT a benchmark.
+PROBE_WELLKNOWN = [
+    "google.com", "youtube.com", "facebook.com", "wikipedia.org",
+    "amazon.com", "apple.com", "microsoft.com", "netflix.com",
+    "instagram.com", "linkedin.com", "x.com", "reddit.com",
+    "yahoo.com", "bing.com", "office.com", "icloud.com",
+    "github.com", "stackoverflow.com", "bbc.com", "nytimes.com",
+    "cnn.com", "ebay.com", "paypal.com", "chase.com",
+    "bankofamerica.com", "wellsfargo.com", "outlook.com", "dropbox.com",
+    "spotify.com", "bbc.co.uk",
+]
+PROBE_PHISHING = [
+    "http://192.168.0.1/login",
+    "http://10.0.0.5/secure/update.php",
+    "http://172.16.9.4:8080/paypal/signin",
+    "paypal.login.evil.com/verify",
+    "appleid.verify-login.tk/signin",
+    "secure-chase-online.gq/login?user=1&s=2",
+    "netflix-billing-update.ml/account",
+    "amaz0n.payments-verify.top/gp/cart",
+    "wellsfargo.signin.verify.cf/login",
+    "instagram.verify-login.xyz/accounts",
+    "coinbase.wallet-check.click/verify",
+    "ebay.motors.deals.buzz/signin?x=1&y=2",
+    "linkedin.jobs.verify.shop/login",
+    "steamcommunity.trade-confirm.ga/login",
+    "discord.nitro-free.top/claim",
+    "binance.api-verify.tk/login",
+    "alipay.secure-check.ml/account",
+    "whatsapp.web-login.xyz/verify",
+    "google.docs-share.evil.com/document",
+    "outlook.office365-verify.tk/login",
+    "dropbox.shared-file.evil.com/s/abc123",
+    "spotify.premium-free.gq/claim",
+    "reddit.gold-verify.cf/login",
+    "x.verify-badge.ml/account",
+    "bbc.news-update.tk/article?id=5&s=1",
+    "cnn.breaking-news.xyz/story?x=9&y=9",
+    "chase.online-access.evil.com/logon",
+    "bankofamerica.secure.verify.gq/signin",
+    "xn--paypl-7qa.evil.com/login",
+    "steam.login.verify-login.tk/signin?session=abc123&token=xyz789",
+]
 
 
 def registered_domain(url: str) -> str:
@@ -81,6 +132,25 @@ def registered_domain(url: str) -> str:
     if ext.domain:
         return ext.domain.lower()
     return host
+
+
+def bare_host(url: str) -> str:
+    """Host-only variant of a URL (no scheme, path, userinfo)."""
+    text = url.strip()
+    lowered = text.lower()
+    if lowered.startswith("http://"):
+        text = text[len("http://"):]
+    elif lowered.startswith("https://"):
+        text = text[len("https://"):]
+    end = len(text)
+    for sep in ("?", "#", "/"):
+        pos = text.find(sep)
+        if pos != -1 and pos < end:
+            end = pos
+    host = text[:end].lower()
+    if "@" in host:
+        host = host.rsplit("@", 1)[-1]
+    return host.strip().rstrip(".")
 
 
 def load_or_build_features() -> pd.DataFrame:
@@ -153,6 +223,39 @@ def balance_text(name: str, y) -> str:
             f"phishing_pct={100.0 * p / n:.2f}%")
 
 
+def augment_bare_legit(urls, y, groups, name: str, seed: int):
+    """Bare-host variants of legit rows (label 0, parent's group).
+
+    Unique hosts, capped at ~10% of legit rows. Call AFTER the grouped
+    split so test rows are never touched and groups stay set-local.
+    """
+    legit_pos = [i for i, v in enumerate(y) if v == 0]
+    host_to_pos: dict[str, int] = {}
+    for i in legit_pos:
+        h = bare_host(urls[i])
+        if h and h not in host_to_pos:
+            host_to_pos[h] = i
+    existing = set(urls)
+    candidates = [h for h in host_to_pos if h not in existing]
+    cap = int(AUG_FRAC * len(legit_pos))
+    rng = np.random.default_rng(seed)
+    k = min(cap, len(candidates))
+    picked = sorted(rng.choice(candidates, size=k, replace=False).tolist())
+    X_aug, kept_hosts, skipped = [], [], 0
+    for h in picked:
+        try:
+            X_aug.append(extract_features(h))
+            kept_hosts.append(h)
+        except ValueError:
+            skipped += 1
+    g_aug = np.array([groups[host_to_pos[h]] for h in kept_hosts])
+    print(f"augment {name}: {len(host_to_pos)} unique legit hosts, "
+          f"cap {cap}, added {len(X_aug)} bare-legit rows "
+          f"(skipped {skipped})")
+    return (np.array(X_aug, dtype=float), np.zeros(len(X_aug), dtype=int),
+            g_aug, picked)
+
+
 def tune_threshold(val_proba, y_val, label: str) -> float:
     """Highest threshold with val recall >= target (VAL only)."""
     coarse = [round(float(t), 2) for t in np.arange(0.05, 1.0, 0.05)]
@@ -186,42 +289,72 @@ def tune_threshold(val_proba, y_val, label: str) -> float:
     return tuned
 
 
-def evaluate(name: str, clf, X_val, y_val, X_test, y_test) -> dict:
-    """Default + val-tuned test metrics for one fitted model."""
-    default_m = metrics_at(y_test, clf.predict(X_test))
-    print_metrics(f"{name} test @0.50", default_m)
-    tuned = tune_threshold(clf.predict_proba(X_val)[:, 1], y_val, name)
-    val_m = metrics_at(y_val, (clf.predict_proba(X_val)[:, 1] >= tuned))
-    print_metrics(f"{name} val @{tuned:.2f}", val_m)
-    test_pred = (clf.predict_proba(X_test)[:, 1] >= tuned).astype(int)
-    tuned_m = metrics_at(y_test, test_pred)
-    print_metrics(f"{name} test @{tuned:.2f}", tuned_m)
-    cm = confusion_matrix(y_test, test_pred)
-    print(f"{name} confusion matrix test @{tuned:.2f}:")
-    print(cm)
-    return {
-        "threshold": tuned,
-        "default_threshold_test": {"threshold": 0.5, **default_m},
-        "tuned_val": {"threshold": tuned, **val_m},
-        "tuned_threshold_test": {"threshold": tuned, **tuned_m},
-        "confusion_matrix_test_tuned": cm.tolist(),
-    }
+def slice_report(name: str, y_true, y_pred) -> dict:
+    """Overall slice metrics + per-side rates (legit FP rate, phish recall)."""
+    y_true = np.asarray(y_true)
+    m = metrics_at(y_true, y_pred)
+    legit = y_true == 0
+    phish = y_true == 1
+    fp_rate = float((y_pred[legit] == 1).mean()) if legit.sum() else 0.0
+    ph_recall = float((y_pred[phish] == 1).mean()) if phish.sum() else 0.0
+    print(f"{name} bare slice: n={len(y_true)} "
+          f"legit={int(legit.sum())} phish={int(phish.sum())} "
+          f"fp_rate_legit={fp_rate:.4f} recall_phish={ph_recall:.4f} "
+          f"prec={m['precision_phish']:.4f} f1={m['f1_phish']:.4f}")
+    return {"n": int(len(y_true)), "n_legit": int(legit.sum()),
+            "n_phish": int(phish.sum()), "fp_rate_legit": fp_rate,
+            "recall_phish": ph_recall, **m}
+
+
+def write_probe_set() -> None:
+    """Write the hand-made probe list (URLs only, one per line)."""
+    lines = ["# Probe set (hand-made sanity check, NOT a benchmark)",
+             "",
+             "Never tune on these URLs. They are biased by construction:",
+             "30 well-known domains (bare + with `/about`) plus 30",
+             "phishing-style URLs.",
+             "",
+             "## well-known bare (30)",
+             "",
+             "```",
+             *[f"https://{d}" for d in PROBE_WELLKNOWN],
+             "```",
+             "",
+             "## well-known with path (30)",
+             "",
+             "```",
+             *[f"https://{d}/about" for d in PROBE_WELLKNOWN],
+             "```",
+             "",
+             "## phishing-style (30)",
+             "",
+             "```",
+             *PROBE_PHISHING,
+             "```",
+             ""]
+    PROBE_PATH.write_text("\n".join(lines))
+    print(f"saved {PROBE_PATH} (90 probe URLs)")
 
 
 def main() -> None:
-    v1 = json.loads(METRICS_V1_PATH.read_text()) if METRICS_V1_PATH.exists() \
-        else None
-    if v1 is None:
-        print("WARNING: models/metrics_v1.json missing; v1 block will be null")
+    frozen = json.loads(METRICS_V2_PATH.read_text()) \
+        if METRICS_V2_PATH.exists() else None
+    if frozen is None:
+        print("WARNING: models/metrics_v2.json missing; "
+              "v2 block will be null")
+    v2_rf_test = (frozen["v2"]["rf"]["tuned_threshold_test"]
+                  if frozen and "v2" in frozen else {})
+    v2_thr = float(frozen["v2"]["rf"]["threshold"]) if frozen else 0.35
 
     data = load_or_build_features()
     print(balance_text("full data", data["label"].values))
 
     X = data[FEATURE_NAMES].to_numpy(dtype=float)
     y = data["label"].to_numpy()
+    urls_all = data["url"].tolist()
 
     t0 = time.time()
-    groups = np.array([registered_domain(u) for u in data["url"].tolist()])
+    groups = np.array([registered_domain(u) for u in urls_all])
     print(f"grouped {len(groups)} urls into "
           f"{len(set(groups))} domains ({time.time() - t0:.1f}s)")
 
@@ -246,9 +379,23 @@ def main() -> None:
     print(balance_text("val  ", y[val_idx]))
     print(balance_text("test ", y[test_idx]))
 
-    X_train, y_train = X[train_idx], y[train_idx]
-    X_val, y_val = X[val_idx], y[val_idx]
-    X_test, y_test = X[test_idx], y[test_idx]
+    # Augment train+val ONLY (post-split, same groups). Test untouched.
+    train_urls = [urls_all[i] for i in train_idx]
+    val_urls = [urls_all[i] for i in val_idx]
+    X_tr_a, y_tr_a, g_tr_a, _ = augment_bare_legit(
+        train_urls, y[train_idx], groups[train_idx], "train",
+        SEED_AUG_TRAIN)
+    X_va_a, y_va_a, g_va_a, _ = augment_bare_legit(
+        val_urls, y[val_idx], groups[val_idx], "val", SEED_AUG_VAL)
+
+    X_train = np.vstack([X[train_idx], X_tr_a])
+    y_train = np.concatenate([y[train_idx], y_tr_a])
+    X_val = np.vstack([X[val_idx], X_va_a])
+    y_val = np.concatenate([y[val_idx], y_va_a])
+    X_test, y_test = X[test_idx], y[test_idx]  # un-augmented headline set
+    print(balance_text("train+aug", y_train))
+    print(balance_text("val+aug", y_val))
+    print(balance_text("test (un-augmented)", y_test))
 
     dummy = DummyClassifier(strategy="most_frequent")
     dummy.fit(X_train, y_train)
@@ -265,71 +412,131 @@ def main() -> None:
     t0 = time.time()
     rf.fit(X_train, y_train)
     print(f"trained RandomForest in {time.time() - t0:.1f}s")
-    rf_res = evaluate("RF", rf, X_val, y_val, X_test, y_test)
-    rf_imp = sorted(zip(FEATURE_NAMES, rf.feature_importances_),
-                    key=lambda kv: kv[1], reverse=True)
-    print("RF top 10 feature importances:")
-    for rank, (name, imp) in enumerate(rf_imp[:10], start=1):
+
+    default_m = metrics_at(y_test, rf.predict(X_test))
+    print_metrics("v3 RF test @0.50", default_m)
+    tuned = tune_threshold(rf.predict_proba(X_val)[:, 1], y_val, "v3 RF")
+    val_m = metrics_at(y_val, (rf.predict_proba(X_val)[:, 1] >= tuned))
+    print_metrics(f"v3 RF val @{tuned:.2f}", val_m)
+    test_pred = (rf.predict_proba(X_test)[:, 1] >= tuned).astype(int)
+    tuned_m = metrics_at(y_test, test_pred)
+    print_metrics(f"v3 RF test @{tuned:.2f}", tuned_m)
+    cm = confusion_matrix(y_test, test_pred)
+    print(f"v3 RF confusion matrix test @{tuned:.2f}:")
+    print(cm)
+
+    importances = sorted(zip(FEATURE_NAMES, rf.feature_importances_),
+                         key=lambda kv: kv[1], reverse=True)
+    print("v3 RF top 10 feature importances:")
+    for rank, (name, imp) in enumerate(importances[:10], start=1):
         print(f"  {rank:2d}. {name:<20s} {imp:.4f}")
-    rf_res["feature_importances_top10"] = [
-        {"feature": n, "importance": float(i)} for n, i in rf_imp[:10]]
 
-    neg, pos = int((y_train == 0).sum()), int((y_train == 1).sum())
-    xgb = XGBClassifier(
-        n_estimators=300,
-        max_depth=6,
-        learning_rate=0.1,
-        subsample=0.8,
-        scale_pos_weight=neg / pos,
-        random_state=SEED_MODEL,
-        tree_method="hist",
-        n_jobs=-1,
-    )
-    t0 = time.time()
-    xgb.fit(X_train, y_train)
-    print(f"trained XGBoost in {time.time() - t0:.1f}s")
-    xgb_res = evaluate("XGB", xgb, X_val, y_val, X_test, y_test)
-    gain = xgb.get_booster().get_score(importance_type="gain")
-    xgb_imp = sorted(
-        ((FEATURE_NAMES[int(k[1:])], v) for k, v in gain.items()),
-        key=lambda kv: kv[1], reverse=True)
-    print("XGB top 10 feature importances (gain):")
-    for rank, (name, imp) in enumerate(xgb_imp[:10], start=1):
-        print(f"  {rank:2d}. {name:<20s} {imp:.4f}")
-    xgb_res["feature_importances_top10"] = [
-        {"feature": n, "importance": float(i)} for n, i in xgb_imp[:10]]
+    # Bare-host slice diagnostic: test rows ONLY, never trained on.
+    test_urls = [urls_all[i] for i in test_idx]
+    host_labels: dict[str, list[int]] = {}
+    for u, v in zip(test_urls, y_test):
+        h = bare_host(u)
+        if h:
+            host_labels.setdefault(h, []).append(int(v))
+    slice_hosts, slice_y, dropped = [], [], 0
+    for h, vs in host_labels.items():
+        if vs.count(0) == vs.count(1):
+            dropped += 1
+            continue
+        slice_hosts.append(h)
+        slice_y.append(0 if vs.count(0) > vs.count(1) else 1)
+    X_slice = np.array([extract_features(h) for h in slice_hosts],
+                       dtype=float)
+    y_slice = np.array(slice_y)
+    print(f"bare slice: {len(slice_hosts)} unique hosts "
+          f"({dropped} tied hosts dropped)")
+    slice_res: dict[str, dict] = {}
+    if MODEL_V2_PATH.exists():
+        v2 = joblib.load(MODEL_V2_PATH)
+        v2_pred = (v2["model"].predict_proba(X_slice)[:, 1]
+                   >= float(v2["threshold"])).astype(int)
+        slice_res["v2"] = {"threshold": float(v2["threshold"]),
+                           **slice_report("v2", y_slice, v2_pred)}
+    else:
+        print("WARNING: v2 joblib copy missing; v2 slice skipped")
+    v3_pred = (rf.predict_proba(X_slice)[:, 1] >= tuned).astype(int)
+    slice_res["v3"] = {"threshold": float(tuned),
+                       **slice_report("v3", y_slice, v3_pred)}
 
-    # Winner: test recall >= 0.90 first, then higher test F1.
-    scored = {
-        "rf": (rf_res["tuned_threshold_test"]["recall_phish"],
-               rf_res["tuned_threshold_test"]["f1_phish"]),
-        "xgb": (xgb_res["tuned_threshold_test"]["recall_phish"],
-                xgb_res["tuned_threshold_test"]["f1_phish"]),
-    }
-    ok = [k for k, (r, _) in scored.items() if r >= 0.90]
-    pool = ok if ok else list(scored)
-    selected = max(pool, key=lambda k: scored[k][1])
-    print(f"selected model: {selected} "
-          f"(test recall/F1: {scored[selected][0]:.4f}/"
-          f"{scored[selected][1]:.4f})")
+    # Probe set: sanity check only, never tuned on.
+    write_probe_set()
+    train_groups = set(groups[train_idx].tolist())
+    probe_urls = ([f"https://{d}" for d in PROBE_WELLKNOWN]
+                  + [f"https://{d}/about" for d in PROBE_WELLKNOWN]
+                  + PROBE_PHISHING)
+    X_probe = np.array([extract_features(u) for u in probe_urls],
+                       dtype=float)
+    probe_res: dict[str, dict] = {}
+    models = {"v3": (rf, float(tuned))}
+    if MODEL_V2_PATH.exists():
+        v2 = joblib.load(MODEL_V2_PATH)
+        models["v2"] = (v2["model"], float(v2["threshold"]))
+    for mname, (m, thr) in models.items():
+        pred = (m.predict_proba(X_probe)[:, 1] >= thr).astype(int)
+        wk_bare = pred[0:30]
+        wk_path = pred[30:60]
+        ph = pred[60:90]
+        seen = [registered_domain(u) in train_groups for u in probe_urls]
+        entry = {
+            "threshold": thr,
+            "wellknown_bare_safe": f"{int((wk_bare == 0).sum())}/30",
+            "wellknown_path_safe": f"{int((wk_path == 0).sum())}/30",
+            "phishing_caught": f"{int((ph == 1).sum())}/30",
+        }
+        for part, sl in (("wellknown_bare", slice(0, 30)),
+                         ("wellknown_path", slice(30, 60)),
+                         ("phishing", slice(60, 90))):
+            idx = list(range(sl.start, sl.stop))
+            s_seen = [i for i in idx if seen[i]]
+            s_new = [i for i in idx if not seen[i]]
+            good = (pred == 0) if part != "phishing" else (pred == 1)
+            entry[f"{part}_seen"] = (
+                f"{int(good[s_seen].sum())}/{len(s_seen)}" if s_seen
+                else "n/a")
+            entry[f"{part}_unseen"] = (
+                f"{int(good[s_new].sum())}/{len(s_new)}" if s_new
+                else "n/a")
+        probe_res[mname] = entry
+        print(f"probe {mname} (thr={thr:.2f}): well-known bare safe "
+              f"{entry['wellknown_bare_safe']} "
+              f"(seen {entry['wellknown_bare_seen']}, "
+              f"unseen {entry['wellknown_bare_unseen']}); with path safe "
+              f"{entry['wellknown_path_safe']} "
+              f"(seen {entry['wellknown_path_seen']}, "
+              f"unseen {entry['wellknown_path_unseen']}); phishing caught "
+              f"{entry['phishing_caught']} "
+              f"(seen {entry['phishing_seen']}, "
+              f"unseen {entry['phishing_unseen']})")
 
-    winner, winner_path = (rf, MODEL_RF_PATH) if selected == "rf" \
-        else (xgb, MODEL_XGB_PATH)
-    loser_path = MODEL_XGB_PATH if selected == "rf" else MODEL_RF_PATH
-    winner_thr = rf_res["threshold"] if selected == "rf" \
-        else xgb_res["threshold"]
-    joblib.dump({"model": winner, "threshold": float(winner_thr),
+    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump({"model": rf, "threshold": float(tuned),
                  "feature_names": FEATURE_NAMES,
                  "random_state": SEED_MODEL},
-                winner_path, compress=3)
-    size_mb = winner_path.stat().st_size / (1024 * 1024)
-    print(f"saved {winner_path} ({size_mb:.2f} MB)")
-    if loser_path.exists():
-        loser_path.unlink()
-        print(f"removed stale {loser_path}")
-    (rf_res if selected == "rf" else xgb_res)["model_size_mb"] = \
-        round(size_mb, 2)
+                MODEL_PATH, compress=3)
+    size_mb = MODEL_PATH.stat().st_size / (1024 * 1024)
+    print(f"saved {MODEL_PATH} ({size_mb:.2f} MB)")
 
+    v3 = {
+        "threshold": float(tuned),
+        "default_threshold_test": {"threshold": 0.5, **default_m},
+        "tuned_val": {"threshold": float(tuned), **val_m},
+        "tuned_threshold_test": {"threshold": float(tuned), **tuned_m},
+        "confusion_matrix_test_tuned": cm.tolist(),
+        "feature_importances_top10": [
+            {"feature": n, "importance": float(i)}
+            for n, i in importances[:10]
+        ],
+        "augmentation": {"train_added": int(len(X_tr_a)),
+                         "val_added": int(len(X_va_a))},
+        "bare_slice": slice_res,
+        "probe": probe_res,
+        "model_size_mb": round(size_mb, 2),
+    }
     metrics = {
         "random_state_split1": SEED_SPLIT1,
         "random_state_split2": SEED_SPLIT2,
@@ -342,29 +549,27 @@ def main() -> None:
             "test": int(len(test_idx)),
         },
         "baseline_test": base_m,
-        "v1": v1,
-        "v2": {"rf": rf_res, "xgb": xgb_res},
-        "selected": selected,
-        "model_file": winner_path.name,
+        "v2": frozen,
+        "v3": v3,
+        "selected": "rf",
+        "model_file": MODEL_PATH.name,
         "model_size_mb": round(size_mb, 2),
     }
     METRICS_PATH.write_text(json.dumps(metrics, indent=2))
     print(f"saved {METRICS_PATH}")
 
-    v1t = v1["tuned_threshold_test"] if v1 else {}
-    r, x = rf_res["tuned_threshold_test"], xgb_res["tuned_threshold_test"]
-    print("v1 vs v2 (@val-tuned threshold, test set):")
+    r = v3["tuned_threshold_test"]
+    print("v2 vs v3 (@val-tuned threshold, un-augmented test set):")
     print("model      thr     acc    prec   recall   f1")
-    if v1t:
-        print(f"v1 RF      {v1t['threshold']:.2f}  "
-              f"{v1t['accuracy']:.4f} {v1t['precision_phish']:.4f} "
-              f"{v1t['recall_phish']:.4f} {v1t['f1_phish']:.4f}")
-    print(f"v2 RF      {r['threshold']:.2f}  "
+    if v2_rf_test:
+        print(f"v2 RF      {v2_rf_test['threshold']:.2f}  "
+              f"{v2_rf_test['accuracy']:.4f} "
+              f"{v2_rf_test['precision_phish']:.4f} "
+              f"{v2_rf_test['recall_phish']:.4f} "
+              f"{v2_rf_test['f1_phish']:.4f}")
+    print(f"v3 RF      {r['threshold']:.2f}  "
           f"{r['accuracy']:.4f} {r['precision_phish']:.4f} "
           f"{r['recall_phish']:.4f} {r['f1_phish']:.4f}")
-    print(f"v2 XGB     {x['threshold']:.2f}  "
-          f"{x['accuracy']:.4f} {x['precision_phish']:.4f} "
-          f"{x['recall_phish']:.4f} {x['f1_phish']:.4f}")
 
 
 if __name__ == "__main__":
