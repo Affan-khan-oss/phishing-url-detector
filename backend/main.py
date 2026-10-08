@@ -1,11 +1,11 @@
 """Phishing URL API (Phase 4).
 
 POST /predict -> {label, score, threshold, risk_level, reasons[],
-source, override, disclaimer}. The model artifact is loaded ONCE at
-startup; feature extraction and reasons come only from ml/features.py.
-A small offline allowlist (backend/allowlist.txt) overrides the model
-verdict for well-known domains — score and model reasons are still
-returned for transparency.
+strong_signals, source, override, disclaimer}. The model artifact is
+loaded ONCE at startup; feature extraction and reasons come only from
+ml/features.py. A small offline allowlist (backend/allowlist.txt)
+overrides the model verdict for well-known domains — score and model
+reasons are still returned for transparency.
 
 Run from the repo root:
   uvicorn backend.main:app --reload --port 8000
@@ -34,6 +34,7 @@ from ml.features import (
     FEATURE_NAMES,
     MAX_URL_LENGTH,
     extract_features,
+    reason_strength,
     reasons_from_features,
 )
 
@@ -71,6 +72,7 @@ class PredictResponse(BaseModel):
     threshold: float
     risk_level: Literal["low", "medium", "high"]
     reasons: list[str]
+    strong_signals: bool
     disclaimer: str
     source: Literal["model", "allowlist"]
     override: bool
@@ -201,6 +203,11 @@ def predict(req: PredictRequest):
     threshold = app.state.threshold
     model_says_phishing = score >= threshold
     reasons = reasons_from_features(feats)
+    # True when at least one strong reason fired. Computed from the model
+    # reasons only: the fallback and the allowlist routing note never count.
+    strong_signals = any(
+        reason_strength(r) == "strong" for r in reasons
+    )
 
     matched = _allowlist_match(_request_host(text), app.state.allowlist)
     if matched is not None:
@@ -219,6 +226,7 @@ def predict(req: PredictRequest):
             "threshold": threshold,
             "risk_level": "low",
             "reasons": [first_reason] + kept,
+            "strong_signals": strong_signals,
             "source": "allowlist",
             "override": override,
             "disclaimer": DISCLAIMER_BASE + DISCLAIMER_ALLOWLIST,
@@ -229,6 +237,7 @@ def predict(req: PredictRequest):
         "threshold": threshold,
         "risk_level": _risk_level(score, threshold),
         "reasons": reasons,
+        "strong_signals": strong_signals,
         "source": "model",
         "override": False,
         "disclaimer": DISCLAIMER_BASE,

@@ -8,6 +8,12 @@ import ResultCard, { type ResultState } from "@/components/ResultCard";
 import Footer from "@/components/Footer";
 import { PredictError, predictUrl } from "@/lib/api";
 
+function looksLikeEmail(value: string): boolean {
+  const text = value.trim();
+  if (!text || text.includes("/") || text.includes("://")) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
+}
+
 export default function Home() {
   const [input, setInput] = useState("");
   const [state, setState] = useState<ResultState>({ status: "empty" });
@@ -63,6 +69,12 @@ export default function Home() {
             onSubmit={handleSubmit}
           />
           <ExampleChips onPick={setInput} />
+          {state.status === "result" && looksLikeEmail(state.checkedUrl) && (
+            <p className="mt-4 rounded-md border border-slate-300 bg-slate-100 p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              This looks like an email address, not a URL. This tool
+              checks links, so treat this result as not meaningful.
+            </p>
+          )}
           <ResultCard state={state} />
         </main>
         <Footer />

@@ -43,3 +43,52 @@ phishing even on well-known domains (`google.com/about` 0.677,
 0.35 threshold). Structurally they resemble classic phishing paths, and
 no host signal in the current 24 features overrides that. Tracked by
 `tests/test_bare_hosts.py` (`xfail(strict=True)` until fixed).
+
+## Real-world spot checks (not a benchmark)
+
+One-off `/predict` probes (v3 model, thr 0.35), recorded 2026-10-08.
+A handful of hand-picked URLs — sanity checks only, never tuned on.
+
+- `www.amazon.in/` → model score 0.663 (high) with `strong_signals`
+  false (fallback reason only); served `safe` solely via the allowlist
+  override. Same trailing-slash/short-path false-positive pattern as
+  `figma.com/about` (0.741) and `figma.com/design` (0.874).
+- `amazon.in/` → model score 0.342, within 0.008 of the threshold:
+  borderline-safe at model level, served via allowlist.
+- `figma.com` (bare) → model score 0.048, comfortably safe — the
+  suspected "figma borderline" did not reproduce on the bare domain;
+  only pathed forms (`/about`, `/design`, `/login`) score high.
+- `amazon.in.evil.com` → model path (`source=model`, score 0.536,
+  brand-mismatch signal): exact-or-www matching correctly refuses the
+  lookalike.
+
+## More real-world spot checks (not a benchmark)
+
+One-off `/predict` probes (v3 model, thr 0.35), recorded 2026-10-08.
+Hand-picked URLs — sanity checks only, never tuned on.
+
+- `amazon.in` — model false positive on `www.amazon.in/` (score 0.663,
+  high, fallback-only so `strong_signals` false), fixed via the
+  allowlist override. Now also exercises the verdict rule: high score
+  with no strong reason shows Suspicious, never "Likely phishing".
+- `muthootfinance.com` (bare) → score 0.030, safe — the suspected 0.61
+  Suspicious did NOT reproduce on the bare, `www.`, or trailing-slash
+  forms (all below 0.10). Only a `/login` path flags (0.736, strong
+  lure word). Listed so the non-reproduction is on record.
+- `chat.whatsapp.com/<invite-code>` → score ~0.38–0.49 depending on the
+  code (medium, weak-only long-token/entropy reasons, `strong_signals`
+  false) → Suspicious. A subdomain of an allowlisted domain, so it
+  goes to the model by design.
+- `flow.google.com/` → score 0.382 (medium, fallback-only) →
+  Suspicious plus the borderline note (0.032 from the threshold). Bare
+  `flow.google.com` scores 0.021, safe.
+- Google Forms link (`docs.google.com/forms/d/e/.../viewform`) →
+  score 0.886 (high) with six weak reasons and `strong_signals` false
+  → Suspicious, never "Likely phishing". Long IDs and deep paths look
+  "random" to lexical features even on trusted hosts.
+
+`docs.google.com` is deliberately NOT allowlisted: forms are widely
+abused for phishing, so every forms/docs URL goes to the model.
+Subdomains of allowlisted domains (`chat.whatsapp.com`,
+`flow.google.com`, `docs.google.com`) always go to the model by
+design — only the exact host or `www.` ever matches.

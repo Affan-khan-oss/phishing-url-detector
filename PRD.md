@@ -20,8 +20,8 @@ Flow: dataset → features → model → `/predict` API → one Next.js page.
 - FR2: Extract a fixed feature vector per URL via `ml/features.py` only. `extract_features` must strip `http://`/`https://` before computing features; `uses_https` is NOT a model feature because the dataset has almost no scheme information.
 - FR3: Split train/test **before** fitting (grouped so the same domain never appears in both sets), train Random Forest, report held-out metrics.
 - FR4: Save model artifact locally (e.g. `models/phishing_rf.joblib`, never committed).
-- FR5: `POST /predict {url}` returns `{label, probability, reasons[]}` — `reasons[]` always present and human-readable.
-- FR6: One Next.js + TypeScript page: input → calls API → shows verdict + probability + reasons.
+- FR5: `POST /predict {url}` returns `{label, score, threshold, risk_level, reasons[], strong_signals, disclaimer, source, override}` — `reasons[]` always present and human-readable.
+- FR6: One Next.js + TypeScript page: input → calls API → shows verdict + risk score bar + risk level + reasons.
 
 ## Out of scope for v1
 

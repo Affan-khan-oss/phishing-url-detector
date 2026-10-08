@@ -117,6 +117,7 @@ export default function ResultCard({ state }: { state: ResultState }) {
   const { data, checkedUrl } = state;
   const isAllowlist = data.source === "allowlist";
   const borderline = Math.abs(data.score - data.threshold) <= 0.05;
+  const safeWithSignals = data.label === "safe" && data.reasons.length > 0;
 
   let tone: "safe" | "medium" | "high" | "info";
   let heading: string;
@@ -131,22 +132,26 @@ export default function ResultCard({ state }: { state: ResultState }) {
     heading = "✓ Looks safe";
     sub =
       "No strong phishing signals found. Still verify the sender before entering credentials.";
-  } else if (data.specific_signals === false) {
-    tone = "medium";
-    heading =
-      "⚠ Suspicious: flagged by the overall pattern, no single strong signal";
+  } else if (
+    data.label === "phishing" &&
+    data.risk_level === "high" &&
+    data.strong_signals === true
+  ) {
+    tone = "high";
+    heading = "⚠ Likely phishing";
     sub =
-      "The model flagged the overall pattern but found no single strong signal. Don't enter credentials. Verify via a known source.";
-  } else if (data.risk_level === "medium") {
+      "This URL has patterns strongly associated with phishing. Don't enter credentials. Verify via a known source.";
+  } else if (data.strong_signals === true) {
     tone = "medium";
     heading = "⚠ Suspicious: some phishing-like patterns";
     sub =
       "This URL has patterns often seen in phishing. Don't enter credentials. Verify via a known source.";
   } else {
-    tone = "high";
-    heading = "⚠ Likely phishing";
+    tone = "medium";
+    heading =
+      "⚠ Suspicious: flagged by the overall pattern, no single strong signal";
     sub =
-      "This URL has patterns strongly associated with phishing. Don't enter credentials. Verify via a known source.";
+      "The model flagged the overall pattern but found no single strong signal. Don't enter credentials. Verify via a known source.";
   }
 
   return (
@@ -171,7 +176,11 @@ export default function ResultCard({ state }: { state: ResultState }) {
         </p>
       )}
 
-      <h3 className="mt-4 text-sm font-semibold">Signals found in the URL</h3>
+      <h3 className="mt-4 text-sm font-semibold">
+        {safeWithSignals
+          ? "Signals found in the URL (not enough to flag)"
+          : "Signals found in the URL"}
+      </h3>
       {data.reasons.length === 0 ? (
         <p className="mt-1 text-sm">No specific signals returned.</p>
       ) : (

@@ -280,6 +280,31 @@ def _features_to_dict(features) -> dict:
     return dict(zip(FEATURE_NAMES, values))
 
 
+# Reasons that on their own strongly suggest phishing. Every other
+# reason from reasons_from_features() is weak (lengths, counts,
+# entropy, tokens, depth, params, risky extension, percent-encoding).
+# The fallback is neither — reason_strength() reports it as "none".
+# Keep these strings identical to the literals below.
+STRONG_REASONS = frozenset(
+    {
+        "Uses an IP address instead of a domain name.",
+        "Contains '@', which can hide the real destination.",
+        "Uses encoded characters that can mimic a trusted domain.",
+        "Contains urgent lures like 'verify' or 'login'.",
+        "Uses a cheap top-level domain often abused for throwaway "
+        "phishing sites.",
+        "Mentions a trusted brand but leads to a different domain.",
+    }
+)
+
+
+def reason_strength(reason: str) -> str:
+    """Tag one reason as 'strong', 'weak', or 'none' (fallback)."""
+    if reason == FALLBACK_REASON:
+        return "none"
+    return "strong" if reason in STRONG_REASONS else "weak"
+
+
 def reasons_from_features(features) -> list[str]:
     """Turn a feature vector into plain-English reasons.
 

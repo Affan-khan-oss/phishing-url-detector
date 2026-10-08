@@ -5,7 +5,9 @@ import pytest
 from ml.features import (
     FALLBACK_REASON,
     FEATURE_NAMES,
+    STRONG_REASONS,
     extract_features,
+    reason_strength,
     reasons_from_features,
 )
 
@@ -86,3 +88,32 @@ def test_reasons_nonempty_and_fallback():
     assert len(reasons_from_features(phishing)) >= 1
     clean = extract_features("example.com")
     assert reasons_from_features(clean) == [FALLBACK_REASON]
+
+
+def test_reason_strength_tags():
+    assert reason_strength(FALLBACK_REASON) == "none"
+    assert reason_strength("URL is unusually long.") == "weak"
+    assert (
+        reason_strength("Uses an IP address instead of a domain name.")
+        == "strong"
+    )
+    # Every reason the helper can emit is tagged, and each of the six
+    # strong reasons fires on at least one battery URL.
+    battery = [
+        "http://192.168.0.1/login",
+        "http://evil.com/a@b",
+        "http://xn--ggle-0nda.com/login",
+        "http://paypal-login-secure-update.tk/signin",
+        "http://paypal.login.evil.com/verify",
+        "http://evil.com/files/invoice.exe",
+        "https://docs.google.com/forms/d/e/1FAIpQLSdaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abcdef/viewform",
+        "example.com/about/team/contact-us",
+    ]
+    seen_strong = set()
+    for url in battery:
+        for r in reasons_from_features(extract_features(url)):
+            strength = reason_strength(r)
+            assert strength in ("strong", "weak", "none"), r
+            if strength == "strong":
+                seen_strong.add(r)
+    assert seen_strong == set(STRONG_REASONS)

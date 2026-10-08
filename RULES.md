@@ -26,8 +26,8 @@ AI must follow these rules. When in doubt, stop and ask. Written for a beginner 
 
 ## API / frontend
 
-- `POST /predict` request: `{url}`; response: `{label, probability, reasons[]}`. Validate input, return 422 + message on garbage URLs, never crash.
-- Frontend: one page, one input, calls `POST /predict`, displays verdict + probability + reasons list. No login/dashboard state.
+- `POST /predict` request: `{url}`; response: `{label, score, threshold, risk_level, reasons[], strong_signals, disclaimer, source, override}`. Validate input, return 422 + message on garbage URLs, never crash.
+- Frontend: one page, one input, calls `POST /predict`, displays verdict + risk score bar + risk level + reasons list. No login/dashboard state.
 
 ## AI workflow
 

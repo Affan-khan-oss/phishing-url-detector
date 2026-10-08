@@ -4,7 +4,7 @@ export type PredictResponse = {
   threshold: number;
   risk_level: "low" | "medium" | "high";
   reasons: string[];
-  specific_signals: boolean;
+  strong_signals: boolean;
   disclaimer: string;
   source: "model" | "allowlist";
   override: boolean;

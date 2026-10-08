@@ -19,6 +19,7 @@ amazon.co.uk
 amazon.com
 amazon.de
 amazon.fr
+amazon.in
 americanexpress.com
 android.com
 aol.com
@@ -27,6 +28,7 @@ archive.org
 asus.com
 att.com
 audible.com
+axisbank.com
 bankofamerica.com
 barclays.co.uk
 bbva.com
@@ -64,6 +66,7 @@ etsy.com
 expedia.com
 facebook.com
 fidelity.com
+figma.com
 flipkart.com
 forbes.com
 ford.com
@@ -74,8 +77,10 @@ github.com
 glassdoor.com
 globo.com
 gmail.com
+google.co.in
 google.com
 grubhub.com
+hdfcbank.com
 hilton.com
 homedepot.com
 honda.com
@@ -84,6 +89,7 @@ hsbc.com
 hulu.com
 hyatt.com
 ibm.com
+icicibank.com
 icloud.com
 ihg.com
 ikea.com
@@ -92,6 +98,7 @@ indeed.com
 ing.com
 instagram.com
 intel.com
+irctc.co.in
 kakao.com
 kfc.com
 khanacademy.org
@@ -113,6 +120,7 @@ mercadolivre.com.br
 microsoft.com
 minecraft.net
 msn.com
+myntra.com
 natwest.com
 naver.com
 nbcnews.com
@@ -120,6 +128,7 @@ netflix.com
 nike.com
 nintendo.com
 nordstrom.com
+notion.so
 nvidia.com
 nytimes.com
 office.com
@@ -129,6 +138,7 @@ orange.fr
 outlook.com
 paypal.com
 paytm.com
+phonepe.com
 pinterest.com
 pizzahut.com
 playstation.com
@@ -158,6 +168,7 @@ stackoverflow.com
 staples.com
 starbucks.com
 stripe.com
+swiggy.com
 taobao.com
 target.com
 telegram.org
@@ -205,4 +216,5 @@ yelp.com
 youtube.com
 zellepay.com
 zillow.com
+zomato.com
 zoom.us
