@@ -1,6 +1,13 @@
 # URL Phishing Detection System
 
-Paste a URL, get a phishing verdict with human-readable reasons. A local full-stack app: a scikit-learn Random Forest scores lexical URL signals behind a FastAPI backend, a small offline allowlist protects well-known domains from model false positives, and a single Next.js + TypeScript page shows the verdict, risk score, risk level, and reasons. Experimental a lexical heuristic, not a safety guarantee.
+Paste a URL, get a phishing verdict with human-readable reasons. A deployed full-stack app (frontend on Vercel, backend on Render free tier): a scikit-learn Random Forest scores lexical URL signals behind a FastAPI backend, a small offline allowlist protects well-known domains from model false positives, and a single Next.js + TypeScript page shows the verdict, risk score, risk level, and reasons. Experimental a lexical heuristic, not a safety guarantee.
+
+## Live demo
+
+- App: https://phishing-url-detector-chi.vercel.app
+- API docs: https://phishing-url-detector-m448.onrender.com/docs
+
+Hosted on free tiers; the first request may take about a minute while the server wakes up.
 
 ## Screenshots
 
@@ -10,15 +17,15 @@ Model safe - low risk on a longer-path URL.
 
 ![Allowlist verdict](docs/screenshots/02-allowlist.png)
 
-Suspicious - medium-risk model verdict with no single strong signal.
+Known safe site - allowlist verdict, low risk.
 
 ![Phishing verdict](docs/screenshots/03-phishing.png)
 
-Known safe site - allowlist verdict, low risk.
+Likely phishing - high risk with strong signals (urgent lure + cheap TLD).
 
 ![Suspicious verdict](docs/screenshots/04-suspicious.png)
 
-Likely phishing - high risk with strong signals (urgent lure + cheap TLD).
+Suspicious - medium-risk model verdict with no single strong signal.
 
 ## Architecture
 
@@ -93,6 +100,26 @@ Open http://localhost:3000. See `frontend/.env.example` for the API URL variable
 .\.venv\Scripts\python.exe -m pytest tests -v
 ```
 
+## Deployment
+
+Live: frontend on Vercel, backend on Render free tier (see Live demo above).
+
+The shipped model is a deploy-sized RandomForest (60 trees, `max_depth` 24, `min_samples_leaf` 10, 12.63 MB) for the 512 MB free tier — see the `deploy` entry in `models/metrics.json`.
+
+**Render (backend):**
+
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+- Env vars:
+  - `PYTHON_VERSION=3.13.0`
+  - `ALLOWED_ORIGINS=https://phishing-url-detector-chi.vercel.app`
+- Health check path: `/health`
+
+**Vercel (frontend):**
+
+- Root directory: `frontend`
+- Env var: `NEXT_PUBLIC_API_URL=https://phishing-url-detector-m448.onrender.com`
+
 ## API reference
 
 Base URL: `http://localhost:8000` (or `NEXT_PUBLIC_API_URL`).
@@ -109,7 +136,7 @@ Sample response shape (phishing-style URL, threshold from the shipped model):
 {
   "label": "phishing",
   "score": 0.9,
-  "threshold": 0.35,
+  "threshold": 0.38,
   "risk_level": "high",
   "reasons": [
     "Contains urgent lures like 'verify' or 'login'.",
@@ -155,6 +182,7 @@ Returns the full tracked `models/metrics.json` document (splits, per-version tes
 | v1 RF | 0.33 | 0.7389 | 0.4656 | 0.8866 | 0.6105 |
 | v2 RF (selected) | 0.35 | 0.8007 | 0.5407 | 0.9070 | 0.6775 |
 | v3 RF (shipped) | 0.35 | 0.7939 | 0.5314 | 0.9074 | 0.6703 |
+| deploy (shipped) | 0.38 | 0.7908 | 0.5272 | 0.9091 | 0.6673 |
 
 v1 used the first feature set; v2 added 10 features (ratios, entropy, depth, query params, long tokens, risky extensions, suspicious TLDs, brand mismatch) and compared RF against XGBoost, selecting RF; v3 kept the v2-RF setup and added bare-host legit augmentation to train/val only (test untouched). The full document nests the v1 and v2 blocks inside `models/metrics.json` for history; `models/metrics_v2.json` is the frozen v1+v2 snapshot.
 
