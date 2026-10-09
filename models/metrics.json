@@ -2,6 +2,15 @@
   "random_state_split1": 42,
   "random_state_split2": 43,
   "random_state_model": 42,
+  "model_config": {
+    "classifier": "RandomForestClassifier",
+    "n_estimators": 64,
+    "max_depth": 24,
+    "min_samples_leaf": 5,
+    "class_weight": "balanced",
+    "n_jobs": 1,
+    "compression": 3
+  },
   "recall_target": 0.92,
   "n_features": 24,
   "splits": {
@@ -290,78 +299,78 @@
     "model_size_mb": 87.88
   },
   "v3": {
-    "threshold": 0.35,
+    "threshold": 0.37,
     "default_threshold_test": {
       "threshold": 0.5,
-      "accuracy": 0.8727585960834684,
-      "precision_phish": 0.6818311976519436,
-      "recall_phish": 0.8413126048935606,
-      "f1_phish": 0.753222617635429
+      "accuracy": 0.8746037085741664,
+      "precision_phish": 0.6850771378458674,
+      "recall_phish": 0.8452875187704266,
+      "f1_phish": 0.7567962988592103
     },
     "tuned_val": {
-      "threshold": 0.35,
-      "accuracy": 0.851812403367119,
-      "precision_phish": 0.5795975130890052,
-      "recall_phish": 0.9205283672585535,
-      "f1_phish": 0.7113215755831465
+      "threshold": 0.37,
+      "accuracy": 0.8496048788867893,
+      "precision_phish": 0.5755434635480116,
+      "recall_phish": 0.920744911216977,
+      "f1_phish": 0.7083243099168736
     },
     "tuned_threshold_test": {
-      "threshold": 0.35,
-      "accuracy": 0.7939488465498435,
-      "precision_phish": 0.5314124615265241,
-      "recall_phish": 0.9074286723787651,
-      "f1_phish": 0.6702879047386021
+      "threshold": 0.37,
+      "accuracy": 0.807109289784601,
+      "precision_phish": 0.5497166684486261,
+      "recall_phish": 0.9083119865736242,
+      "f1_phish": 0.6849169081160289
     },
     "confusion_matrix_test_tuned": [
       [
-        57338,
-        18117
+        58609,
+        16846
       ],
       [
-        2096,
-        20546
+        2076,
+        20566
       ]
     ],
     "feature_importances_top10": [
       {
-        "feature": "longest_token_len",
-        "importance": 0.0919811574174081
-      },
-      {
         "feature": "has_suspicious_word",
-        "importance": 0.09059733098473303
+        "importance": 0.10523614333078873
       },
       {
-        "feature": "path_entropy",
-        "importance": 0.07712600668163329
-      },
-      {
-        "feature": "path_len",
-        "importance": 0.07545639160657594
-      },
-      {
-        "feature": "path_depth",
-        "importance": 0.072651069674579
+        "feature": "longest_token_len",
+        "importance": 0.08633821983878215
       },
       {
         "feature": "num_dots",
-        "importance": 0.07175899681265013
+        "importance": 0.07848710019052439
+      },
+      {
+        "feature": "path_len",
+        "importance": 0.07690300303130262
       },
       {
         "feature": "num_digits",
-        "importance": 0.06608431026982033
+        "importance": 0.07158633943215596
+      },
+      {
+        "feature": "path_depth",
+        "importance": 0.07152634869726336
+      },
+      {
+        "feature": "path_entropy",
+        "importance": 0.06983925258768474
       },
       {
         "feature": "letter_ratio",
-        "importance": 0.06400534298268862
-      },
-      {
-        "feature": "host_entropy",
-        "importance": 0.058338348793936776
+        "importance": 0.06028312803233856
       },
       {
         "feature": "url_len",
-        "importance": 0.051481154305385995
+        "importance": 0.051037249238026064
+      },
+      {
+        "feature": "digit_ratio",
+        "importance": 0.049680767488147426
       }
     ],
     "augmentation": {
@@ -381,20 +390,20 @@
         "f1_phish": 0.45287188352075275
       },
       "v3": {
-        "threshold": 0.35,
+        "threshold": 0.37,
         "n": 43414,
         "n_legit": 30708,
         "n_phish": 12706,
-        "fp_rate_legit": 0.025628500716425688,
-        "recall_phish": 0.2261923500708327,
-        "accuracy": 0.755401483392454,
-        "precision_phish": 0.7850314121824639,
-        "f1_phish": 0.3511944766909024
+        "fp_rate_legit": 0.026865963266901133,
+        "recall_phish": 0.22658586494569494,
+        "accuracy": 0.7546413599299765,
+        "precision_phish": 0.777267818574514,
+        "f1_phish": 0.35088360755636805
       }
     },
     "probe": {
       "v3": {
-        "threshold": 0.35,
+        "threshold": 0.37,
         "wellknown_bare_safe": "30/30",
         "wellknown_path_safe": "3/30",
         "phishing_caught": "30/30",
@@ -418,9 +427,9 @@
         "phishing_unseen": "30/30"
       }
     },
-    "model_size_mb": 91.7
+    "model_size_mb": 18.38
   },
   "selected": "rf",
   "model_file": "phishing_rf.joblib",
-  "model_size_mb": 91.7
+  "model_size_mb": 18.38
 }
