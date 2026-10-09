@@ -4,5 +4,6 @@ __pycache__/
 node_modules/
 .pytest_cache/
 *.joblib
+!models/phishing_rf.joblib
 ml/data/*.csv
 frontend/.env.local

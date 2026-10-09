@@ -39,12 +39,16 @@ and `FEATURE_NAMES` unchanged):
 
 Errors: `422 + {detail}` on garbage URL; `413` on body > 4KB; network failure / timeout = API down.
 
+`GET {NEXT_PUBLIC_API_URL, default http://localhost:8000}/health`
+→ `{status, model_loaded}`. Fired once in the background on page load
+to warm free-tier hosting (which sleeps when idle); see §4 waking-up note.
+
 Rules:
 
 - Render `disclaimer` verbatim from API.
 - Never render any URL from the API as `<a href>`. Plain `<p>/<code>` only.
 - Never display score as "% probability". Only as "Risk score" bar (`0.72 / 1.00`).
-- Fetch has a 10s timeout (`AbortController`); on timeout show the friendly timeout error below.
+- `predictUrl` fetch has a 75s timeout (`AbortController`); on timeout show the friendly timeout error below. Health ping has its own 75s timeout and never blocks checking.
 
 ## 3. Layout (mobile-first, single column, `max-w-xl mx-auto`)
 
@@ -77,7 +81,7 @@ Examples are `<button type="button">`, never `<a href>`. Click fills the input (
 
 ## 4. States + copy
 
-All states live in `<ResultCard>` region (`aria-live="polite"`). Form stays mounted.
+All check states live in `<ResultCard>` region (`aria-live="polite"`). Form stays mounted. The waking-up note lives outside `<ResultCard>` (neutral `role="status"` panel above it).
 
 - **empty** (initial): muted panel: "No check yet. Enter a URL above and press Check."
 - **loading**: input + button disabled (`Checking…`, `aria-busy="true"`), skeleton bar + "Checking URL…". Abort previous fetch on resubmit.
@@ -90,7 +94,8 @@ All states live in `<ResultCard>` region (`aria-live="polite"`). Form stays moun
 - **email-looking input** (`name@domain.tld`, no slash, no scheme): show above the result "This looks like an email address, not a URL. This tool checks links, so treat this result as not meaningful." Never block submission.
 - **error-422**: badge `ⓘ Can't check that URL`. Sub: API `detail` message verbatim, e.g. "Enter a valid URL, e.g. example.com/login." Keep input value.
 - **error-down**: badge `ⓘ Checker unavailable`. Sub: "Can't reach the API at {API_URL}. Start the backend (`uvicorn backend.main:app --port 8000`) and try again."
-- **error-timeout** (fetch > 10s): badge `ⓘ Request timed out`. Sub: "The check took longer than 10 seconds. The backend may be busy — try again."
+- **error-timeout** (fetch > 75s): badge `ⓘ Request timed out`. Sub: "The check took longer than 75 seconds. The backend may be busy — try again."
+- **waking-up note** (outside `<ResultCard>`, above it): on page load fire a background `GET /health`. If it has not answered within 3s, show a calm neutral note (`role="status"`): "The server is waking up (free hosting sleeps when idle). The first check can take up to a minute." Hide it when `/health` answers or fails. Never reuse the "Checker unavailable" state for this slow-wake case; that badge stays reserved for real predict failures.
 
 Color is never the only signal: every verdict has icon + text + risk_level word.
 
@@ -123,8 +128,9 @@ Source note: "Source: model" / "Source: allowlist" [+ " — model score was over
 - `ExampleChips.tsx` — 4 × `<button type="button">` chips from §3.
 - `ResultCard.tsx` (+ tiny `ScoreBar` inside) — switch on states in §4.
 - `Footer.tsx` — Limitations section (`id="limitations"`).
-- `lib/api.ts` — `PredictResponse` TS type + one `predictUrl(url, { timeoutMs: 10000 })` fetch helper using `AbortController`. `API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"`.
-- No router, no state lib; `useState` only.
+- `lib/api.ts` — `PredictResponse` TS type + one `predictUrl(url, { timeoutMs: 75000 })` fetch helper using `AbortController` (`PREDICT_TIMEOUT_MS = 75000`) + one `checkHealth({ timeoutMs: 75000 })` helper for `GET /health` (`HEALTH_TIMEOUT_MS = 75000`, `HEALTH_WAKEUP_AFTER_MS = 3000`). `API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"`.
+- `app/page.tsx` fires `checkHealth()` once on mount; a 3s timer shows the waking-up note only while the ping is still pending.
+- No router, no state lib; `useState` + `useEffect` only.
 
 ## 7. Colors + typography
 
@@ -158,7 +164,8 @@ Dark/light: respect OS via `dark:` + `color-scheme`. No manual toggle in v1.
 - Visible `<label>`, `aria-live="polite"` on result region, `aria-busy` while loading, focus moved to result heading on resolve.
 - Touch targets ≥44px, single column stacks on <640px.
 - Calm tone: no "DANGER", no fullscreen red, no % certainty claims.
-- 10s timeout with distinct timeout copy (§4); abort stale requests.
+- 75s predict timeout with distinct timeout copy (§4); abort stale requests.
+- Background `GET /health` on page load; waking-up note appears only if the ping is still pending after 3s, hides on answer/failure.
 
 ## 10. Files / env
 

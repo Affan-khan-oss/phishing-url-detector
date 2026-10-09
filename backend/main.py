@@ -49,6 +49,21 @@ METRICS_PATH = Path(
 MAX_BODY_BYTES = 4096
 RISK_HIGH_CUT = 0.65
 
+
+def get_allowed_origins() -> list[str]:
+    """Allowed CORS origins from ALLOWED_ORIGINS (comma-separated).
+
+    Defaults to http://localhost:3000 for local dev. Empty entries are
+    ignored; a blank value falls back to the default so the API never
+    starts with an empty allow-list by accident.
+    """
+    raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+    origins = [part.strip() for part in raw.split(",") if part.strip()]
+    return origins or ["http://localhost:3000"]
+
+
+ALLOWED_ORIGINS = get_allowed_origins()
+
 DISCLAIMER_BASE = (
     "Lexical heuristic only, not a safety guarantee. "
     "The score is the share of model trees voting phishing, "
@@ -137,6 +152,10 @@ async def lifespan(app: FastAPI):
     if list(bundle["feature_names"]) != FEATURE_NAMES:
         raise RuntimeError("model features do not match ml/features.py")
     app.state.model = bundle["model"]
+    # Single-threaded inference: keeps free-tier hosts stable and avoids
+    # oversubscribing CPUs on small containers.
+    if hasattr(app.state.model, "n_jobs"):
+        app.state.model.n_jobs = 1
     app.state.threshold = float(bundle["threshold"])
     app.state.allowlist = {
         line.strip().lower()
@@ -156,7 +175,7 @@ app = FastAPI(title="Phishing URL detector", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

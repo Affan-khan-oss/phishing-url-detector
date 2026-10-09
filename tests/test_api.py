@@ -49,7 +49,7 @@ def client():
 def _check_shape(body: dict):
     assert body["label"] in ("phishing", "safe")
     assert 0.0 <= body["score"] <= 1.0
-    assert body["threshold"] == pytest.approx(0.35)
+    assert body["threshold"] == pytest.approx(0.38)
     assert body["risk_level"] in ("low", "medium", "high")
     assert len(body["reasons"]) >= 1
     assert isinstance(body["strong_signals"], bool)
@@ -199,7 +199,7 @@ def test_scheme_invariance(client):
     b = client.post(
         "/predict", json={"url": "example.com/about/team/contact-us"}
     ).json()
-    # approx: parallel tree inference (n_jobs=-1) can flip the last bit.
+    # approx: inference is pinned to n_jobs=1, so scores stay stable.
     assert a["score"] == pytest.approx(b["score"])
 
 

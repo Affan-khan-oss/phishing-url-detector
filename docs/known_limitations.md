@@ -10,6 +10,28 @@ see also `docs/threshold_validation.md` and `docs/probe_set.md`.
 | v2 RF | 0.8007 | 0.5407 | 0.9070 | 0.6775 |
 | v3 RF | 0.7939 | 0.5314 | 0.9074 | 0.6703 |
 
+## Deploy model (512 MB host budget)
+
+The tracked `models/phishing_rf.joblib` is a smaller RandomForest
+(`deploy-m`: 60 trees, `max_depth` 24, `min_samples_leaf` 10, thr 0.38)
+trained on the same grouped splits/seeds/augmentation as v3 with the
+same 0.92 val-recall tuning. The previous artifact is kept locally as
+`models/phishing_rf_full.joblib` (git-ignored). Full numbers live in
+`models/metrics.json` under `deploy`.
+
+| config (trees/depth/leaf) | thr | size MB | RAM after load MB | latency ms | test recall | prec | F1 | meets all? |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| current (64/24/5) | 0.37 | 18.38 | 216 | 18.9 | 0.9083 | 0.5497 | 0.6849 | — (reference) |
+| deploy-s (60/20/20) | 0.38 | 7.45 | 166 | 14.8 | 0.9120 | 0.5010 | 0.6467 | no (F1 0.038 below current) |
+| deploy-m (60/24/10) | 0.38 | 12.63 | 193 | 15.3 | 0.9091 | 0.5272 | 0.6673 | **yes — shipped** |
+| deploy-l (100/24/5) | 0.37 | 28.77 | 256 | 23.1 | 0.9080 | 0.5356 | 0.6738 | no (RAM 256 > 250 MB) |
+
+Rule: smallest config with test recall ≥ 0.90, F1 within 0.02 of
+current (≥ 0.6649), and RAM after load ≤ 250 MB. File is 12.63 MB
+(well under the 50 MB cap). The bare-host and short-path blind spots
+below apply to the deploy model too — it uses the same features and
+augmentation recipe.
+
 ## Bare-host slice (43,414 unique test hosts, never trained on)
 
 | model | FP rate on bare-legit (n=30,708) | recall on bare-phishing (n=12,706) | slice prec / F1 |

@@ -40,7 +40,7 @@ One rule shapes the whole design: feature extraction lives only in `ml/features.
 
 Run everything from the repo root. Toolchain: Python 3.13.0 in `.venv/` (see `AGENTS.md`).
 
-**1. Get the dataset.** Download the Kaggle "Phishing Site URLs" dataset and place the raw CSV at `ml/data/phishing_site_urls.csv` (columns `xURL`, `Label`; never modified by the pipeline). Datasets, `*.joblib` artifacts, and `.env` files stay local-only and are never committed.
+**1. Get the dataset.** Download the Kaggle "Phishing Site URLs" dataset and place the raw CSV at `ml/data/phishing_site_urls.csv` (columns `xURL`, `Label`; never modified by the pipeline). Datasets, `.env` files, and `*.joblib` artifacts stay local-only and are never committed — except the small deploy model `models/phishing_rf.joblib` (tracked via `!models/phishing_rf.joblib` in `.gitignore`).
 
 **2. Clean the data** (`ml/data/phishing_site_urls.csv` → `ml/data/clean.csv` with columns `url`, `label`):
 
@@ -54,13 +54,26 @@ Run everything from the repo root. Toolchain: Python 3.13.0 in `.venv/` (see `AG
 .\.venv\Scripts\python.exe ml/train.py
 ```
 
+Deploy note: the tracked `models/phishing_rf.joblib` is the small
+deploy model for a 512 MB host (60 trees, `max_depth` 24,
+`min_samples_leaf` 10, thr 0.38, 12.63 MB — see the `deploy` entry in
+`models/metrics.json` and the table in `docs/known_limitations.md`).
+The previous artifact is kept locally as
+`models/phishing_rf_full.joblib` (git-ignored backup). Retraining with
+`ml/train.py` overwrites the deploy file with the full-size model.
+
 **4. Start the backend** (needs `models/phishing_rf.joblib` — run `ml/train.py` first):
 
 ```bat
 .\.venv\Scripts\python.exe -m uvicorn backend.main:app --reload --port 8000
 ```
 
-`MODEL_PATH` env overrides the model location. API base for the frontend comes from `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`.
+Backend env (all optional):
+
+- `MODEL_PATH` (default `models/phishing_rf.joblib`) — overrides the model artifact location.
+- `ALLOWED_ORIGINS` (comma-separated, default `http://localhost:3000`) — CORS allow-list; in production set it to your frontend origin, e.g. `ALLOWED_ORIGINS=https://your-app.vercel.app`.
+
+Inference runs single-threaded (`model.n_jobs = 1`) for stable free-tier hosting.
 
 **5. Start the frontend** (from the repo root; API base from `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`):
 
@@ -70,7 +83,9 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. See `frontend/.env.example` for the API URL variable.
+Open http://localhost:3000. See `frontend/.env.example` for the API URL variable. Frontend env:
+
+- `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`) — API base used for `POST /predict` and the background `GET /health` warm-up ping.
 
 **6. Run the tests:**
 
@@ -86,7 +101,7 @@ Base URL: `http://localhost:8000` (or `NEXT_PUBLIC_API_URL`).
 
 Request: `{ "url": string }`
 
-Response: `{label, score, threshold, risk_level, reasons[], strong_signals, disclaimer, source, override}` — `label` is `safe` | `phishing`, `risk_level` is `low` | `medium` | `high`, `source` is `model` | `allowlist`. `reasons[]` is always present and human-readable. On the allowlist path the verdict is `safe` with `risk_level` low; the model score and model reasons are still returned for transparency, with `override: true` when the model had voted phishing. `strong_signals` is true when at least one strong reason fired on the model path (fallback text and allowlist routing notes never count). Errors: `422 + {detail}` on garbage/empty/oversize URLs (max 2048 chars), `413` on bodies over 4 KB. The frontend uses a 10 s fetch timeout and reports network failure as API-down.
+Response: `{label, score, threshold, risk_level, reasons[], strong_signals, disclaimer, source, override}` — `label` is `safe` | `phishing`, `risk_level` is `low` | `medium` | `high`, `source` is `model` | `allowlist`. `reasons[]` is always present and human-readable. On the allowlist path the verdict is `safe` with `risk_level` low; the model score and model reasons are still returned for transparency, with `override: true` when the model had voted phishing. `strong_signals` is true when at least one strong reason fired on the model path (fallback text and allowlist routing notes never count). Errors: `422 + {detail}` on garbage/empty/oversize URLs (max 2048 chars), `413` on bodies over 4 KB. The frontend uses a 75 s fetch timeout for `POST /predict` (free-tier cold starts can be slow) and reports network failure as API-down. On page load it also fires a background `GET /health`; if that ping is still pending after 3 s it shows "The server is waking up (free hosting sleeps when idle). The first check can take up to a minute."
 
 Sample response shape (phishing-style URL, threshold from the shipped model):
 
@@ -169,7 +184,7 @@ ml/clean.py          raw ml/data/phishing_site_urls.csv -> ml/data/clean.csv (ur
 ml/features.py       the only feature logic: extract_features + reasons_from_features + reason_strength
 ml/train.py          featurize (cached in ml/data/features.csv) -> grouped split -> train RF -> metrics
 ml/data/             raw + clean.csv + feature cache (local-only)
-models/              phishing_rf.joblib (local-only) + metrics.json / metrics_v2.json (tracked)
+models/              phishing_rf.joblib (tracked deploy model, 12.63 MB) + phishing_rf_full.joblib (local-only backup) + metrics.json / metrics_v2.json (tracked)
 backend/main.py      FastAPI: POST /predict, GET /health, GET /metrics
 backend/allowlist.txt  offline well-known-domain list (exact or www. matching only)
 frontend/            Next.js + TypeScript one-page checker (app, components, lib/api.ts)

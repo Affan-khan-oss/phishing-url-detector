@@ -1,12 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";
 import UrlForm from "@/components/UrlForm";
 import ExampleChips from "@/components/ExampleChips";
 import ResultCard, { type ResultState } from "@/components/ResultCard";
 import Footer from "@/components/Footer";
-import { PredictError, predictUrl } from "@/lib/api";
+import {
+  HEALTH_WAKEUP_AFTER_MS,
+  PredictError,
+  checkHealth,
+  predictUrl,
+} from "@/lib/api";
 
 function looksLikeEmail(value: string): boolean {
   const text = value.trim();
@@ -18,7 +23,28 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [state, setState] = useState<ResultState>({ status: "empty" });
   const [loading, setLoading] = useState(false);
+  const [wakingUp, setWakingUp] = useState(false);
   const requestId = useRef(0);
+
+  // Free-tier hosting sleeps when idle: warm it with a background
+  // GET /health on page load. Only show the note if it is slow.
+  useEffect(() => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) setWakingUp(true);
+    }, HEALTH_WAKEUP_AFTER_MS);
+    checkHealth()
+      .catch(() => undefined)
+      .finally(() => {
+        settled = true;
+        clearTimeout(timer);
+        setWakingUp(false);
+      });
+    return () => {
+      settled = true;
+      clearTimeout(timer);
+    };
+  }, []);
 
   async function handleSubmit() {
     const url = input.trim();
@@ -69,6 +95,15 @@ export default function Home() {
             onSubmit={handleSubmit}
           />
           <ExampleChips onPick={setInput} />
+          {wakingUp && (
+            <p
+              role="status"
+              className="mt-4 rounded-md border border-slate-300 bg-slate-100 p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+            >
+              The server is waking up (free hosting sleeps when idle). The
+              first check can take up to a minute.
+            </p>
+          )}
           {state.status === "result" && looksLikeEmail(state.checkedUrl) && (
             <p className="mt-4 rounded-md border border-slate-300 bg-slate-100 p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
               This looks like an email address, not a URL. This tool

@@ -13,6 +13,10 @@ export type PredictResponse = {
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+export const PREDICT_TIMEOUT_MS = 75000;
+export const HEALTH_TIMEOUT_MS = 75000;
+export const HEALTH_WAKEUP_AFTER_MS = 3000;
+
 export class PredictError extends Error {
   kind: "validation" | "unavailable" | "timeout";
   constructor(kind: "validation" | "unavailable" | "timeout", message: string) {
@@ -25,7 +29,7 @@ export async function predictUrl(
   url: string,
   opts: { timeoutMs?: number } = {},
 ): Promise<PredictResponse> {
-  const timeoutMs = opts.timeoutMs ?? 10000;
+  const timeoutMs = opts.timeoutMs ?? PREDICT_TIMEOUT_MS;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -59,13 +63,32 @@ export async function predictUrl(
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new PredictError(
         "timeout",
-        "The check took longer than 10 seconds. The backend may be busy — try again.",
+        "The check took longer than 75 seconds. The backend may be busy — try again.",
       );
     }
     throw new PredictError(
       "unavailable",
       `Can't reach the API at ${API_BASE}. Start the backend (\`uvicorn backend.main:app --port 8000\`) and try again.`,
     );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function checkHealth(
+  opts: { timeoutMs?: number } = {},
+): Promise<{ status: string; model_loaded: boolean }> {
+  const timeoutMs = opts.timeoutMs ?? HEALTH_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}/health`, {
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`health returned status ${res.status}`);
+    }
+    return (await res.json()) as { status: string; model_loaded: boolean };
   } finally {
     clearTimeout(timer);
   }

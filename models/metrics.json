@@ -431,5 +431,86 @@
   },
   "selected": "rf",
   "model_file": "phishing_rf.joblib",
-  "model_size_mb": 18.38
+  "model_size_mb": 12.63,
+  "deploy": {
+    "model_file": "phishing_rf.joblib",
+    "backup_full_model_file": "phishing_rf_full.joblib (local-only, git-ignored)",
+    "config": {
+      "classifier": "RandomForestClassifier",
+      "n_estimators": 60,
+      "max_depth": 24,
+      "min_samples_leaf": 10,
+      "class_weight": "balanced",
+      "random_state": 42,
+      "n_jobs": 1,
+      "compression": 3
+    },
+    "pipeline": {
+      "splits": "same grouped split as v3 (seeds 42/43)",
+      "augmentation": "same bare-host legit aug as v3 (frac 0.10, seeds 42/43)",
+      "recall_target": 0.92
+    },
+    "threshold": 0.38,
+    "tuned_threshold_test": {
+      "threshold": 0.38,
+      "accuracy": 0.7908090971181586,
+      "precision_phish": 0.5271595769201219,
+      "recall_phish": 0.9091069693489975,
+      "f1_phish": 0.66734750117525
+    },
+    "model_size_mb": 12.63,
+    "ram_after_load_mb": 192.8,
+    "ram_delta_mb": 156.2,
+    "latency_ms_per_request": 15.34,
+    "selection": {
+      "rule": "smallest config with test recall >= 0.90, F1 within 0.02 of current (0.6849 -> floor 0.6649), RAM after load <= 250 MB",
+      "current_f1": 0.6849,
+      "candidates": [
+        {
+          "config": "deploy-s",
+          "n_estimators": 60,
+          "max_depth": 20,
+          "min_samples_leaf": 20,
+          "threshold": 0.38,
+          "size_mb": 7.45,
+          "ram_after_mb": 166.4,
+          "latency_ms": 14.75,
+          "recall_phish": 0.912,
+          "precision_phish": 0.501,
+          "f1_phish": 0.6467,
+          "meets_all": false
+        },
+        {
+          "config": "deploy-m",
+          "n_estimators": 60,
+          "max_depth": 24,
+          "min_samples_leaf": 10,
+          "threshold": 0.38,
+          "size_mb": 12.63,
+          "ram_after_mb": 192.8,
+          "latency_ms": 15.34,
+          "recall_phish": 0.9091,
+          "precision_phish": 0.5272,
+          "f1_phish": 0.6673,
+          "meets_all": true
+        },
+        {
+          "config": "deploy-l",
+          "n_estimators": 100,
+          "max_depth": 24,
+          "min_samples_leaf": 5,
+          "threshold": 0.37,
+          "size_mb": 28.77,
+          "ram_after_mb": 256.4,
+          "latency_ms": 23.06,
+          "recall_phish": 0.908,
+          "precision_phish": 0.5356,
+          "f1_phish": 0.6738,
+          "meets_all": false
+        }
+      ],
+      "chosen": "deploy-m",
+      "note": "deploy-s failed F1 (0.6467, 0.038 below current); deploy-l failed RAM (256 MB after load > 250 MB)"
+    }
+  }
 }
